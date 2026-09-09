@@ -97,6 +97,12 @@ abstract class MysqlFixture {
             //noinspection SqlWithoutWhere
             s.executeUpdate("DELETE FROM test_attempts");
             //noinspection SqlWithoutWhere
+            s.executeUpdate("DELETE FROM test_imports");
+            //noinspection SqlWithoutWhere
+            s.executeUpdate("DELETE FROM test_automation_mappings");
+            //noinspection SqlWithoutWhere
+            s.executeUpdate("DELETE FROM test_automation_identities");
+            //noinspection SqlWithoutWhere
             s.executeUpdate("DELETE FROM defects");
             //noinspection SqlWithoutWhere
             s.executeUpdate("DELETE FROM test_run_case_steps");
