@@ -20,6 +20,16 @@ public final class JdbcProjectDao implements ProjectDao {
         return find("SELECT " + COLUMNS + " FROM projects WHERE id=?", id, Types.BIGINT);
     }
 
+    @Override public Optional<Project> findByIdForShare(Long id) {
+        requireTransaction();
+        return find("SELECT " + COLUMNS + " FROM projects WHERE id=? FOR SHARE", id, Types.BIGINT);
+    }
+
+    @Override public Optional<Project> findByIdForUpdate(Long id) {
+        requireTransaction();
+        return find("SELECT " + COLUMNS + " FROM projects WHERE id=? FOR UPDATE", id, Types.BIGINT);
+    }
+
     @Override public Optional<Project> findByKey(String key) {
         return find("SELECT " + COLUMNS + " FROM projects WHERE project_key=?", key, Types.VARCHAR);
     }
@@ -31,6 +41,12 @@ public final class JdbcProjectDao implements ProjectDao {
                 return rs.next() ? Optional.of(map(rs)) : Optional.empty();
             }
         } catch (SQLException e) { throw new DataAccessException("Find Project", e); }
+    }
+
+    private void requireTransaction() {
+        try {
+            if (connection.getAutoCommit()) throw new SQLException("Project locking requires an outer transaction", "25000");
+        } catch (SQLException e) { throw new DataAccessException("Lock Project", e); }
     }
 
     @Override public Project insert(Project value) {

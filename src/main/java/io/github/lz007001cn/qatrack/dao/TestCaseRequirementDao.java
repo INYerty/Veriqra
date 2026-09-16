@@ -19,4 +19,8 @@ public interface TestCaseRequirementDao {
                               Long reviewedBy, LocalDateTime reviewedAt);
     /** Logical removal, retaining the association and first-link metadata. */
     boolean markRemoved(Long requirementId, Long testCaseId);
+    /** Invalidates only currently CONFIRMED links; REMOVED rows remain REMOVED. */
+    int markConfirmedNeedsReviewByRequirement(Long requirementId);
+    /** Invalidates only currently CONFIRMED links; REMOVED rows remain REMOVED. */
+    int markConfirmedNeedsReviewByTestCase(Long testCaseId);
 }

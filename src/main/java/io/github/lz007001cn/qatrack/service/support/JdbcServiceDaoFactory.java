@@ -1,0 +1,17 @@
+package io.github.lz007001cn.qatrack.service.support;
+
+import io.github.lz007001cn.qatrack.dao.jdbc.*;
+import java.sql.Connection;
+import java.util.Objects;
+
+/** Creates non-owning JDBC DAOs over exactly the supplied transaction Connection. */
+public final class JdbcServiceDaoFactory implements ServiceDaoFactory {
+    @Override public ServiceDaos create(Connection connection) {
+        Objects.requireNonNull(connection);
+        return new ServiceDaos(new JdbcUserDao(connection), new JdbcProjectDao(connection),
+                new JdbcProjectMemberDao(connection), new JdbcProjectCounterDao(connection),
+                new JdbcRequirementDao(connection), new JdbcTestCaseDao(connection),
+                new JdbcTestStepDao(connection), new JdbcTestCaseRequirementDao(connection),
+                new JdbcTestRunDao(connection));
+    }
+}

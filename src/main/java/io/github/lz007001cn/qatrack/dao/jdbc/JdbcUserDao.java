@@ -20,6 +20,11 @@ public final class JdbcUserDao implements UserDao {
         return find("SELECT " + COLUMNS + " FROM users WHERE id=?", id, Types.BIGINT);
     }
 
+    @Override public Optional<User> findByIdForShare(Long id) {
+        requireTransaction();
+        return find("SELECT " + COLUMNS + " FROM users WHERE id=? FOR SHARE", id, Types.BIGINT);
+    }
+
     @Override public Optional<User> findByUsername(String key) {
         return find("SELECT " + COLUMNS + " FROM users WHERE username=?", key, Types.VARCHAR);
     }
@@ -31,6 +36,12 @@ public final class JdbcUserDao implements UserDao {
                 return rs.next() ? Optional.of(map(rs)) : Optional.empty();
             }
         } catch (SQLException e) { throw new DataAccessException("Find User", e); }
+    }
+
+    private void requireTransaction() {
+        try {
+            if (connection.getAutoCommit()) throw new SQLException("User locking requires an outer transaction", "25000");
+        } catch (SQLException e) { throw new DataAccessException("Lock User", e); }
     }
 
     @Override public User insert(User value) {

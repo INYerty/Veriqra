@@ -28,6 +28,10 @@ public final class JdbcProjectMemberDao implements ProjectMemberDao {
     @Override public Optional<ProjectMember> find(Long projectId, Long userId) {
         return query(SELECT + " WHERE project_id=? AND user_id=?", projectId, userId).stream().findFirst();
     }
+    @Override public Optional<ProjectMember> findForShare(Long projectId, Long userId) {
+        requireTransaction();
+        return query(SELECT + " WHERE project_id=? AND user_id=? FOR SHARE", projectId, userId).stream().findFirst();
+    }
     @Override public boolean existsRecord(Long projectId, Long userId) { return find(projectId, userId).isPresent(); }
     @Override public List<ProjectMember> listByProject(Long projectId) {
         return query(SELECT + " WHERE project_id=? ORDER BY user_id", projectId);
@@ -48,6 +52,12 @@ public final class JdbcProjectMemberDao implements ProjectMemberDao {
                 return List.copyOf(rows);
             }
         } catch (SQLException e) { throw new DataAccessException("Find ProjectMember", e); }
+    }
+
+    private void requireTransaction() {
+        try {
+            if (connection.getAutoCommit()) throw new SQLException("Membership locking requires an outer transaction", "25000");
+        } catch (SQLException e) { throw new DataAccessException("Lock ProjectMember", e); }
     }
 
     @Override public ProjectMember update(ProjectMember value) {

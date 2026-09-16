@@ -6,6 +6,10 @@ import java.util.Optional;
 /** Row persistence without project authorization, counters or membership business rules. */
 public interface ProjectDao {
     Optional<Project> findById(Long id);
+    /** Requires an outer transaction; coordinates project-scoped writes without blocking other readers. */
+    Optional<Project> findByIdForShare(Long id);
+    /** Requires an outer transaction; used for project state changes such as archive. */
+    Optional<Project> findByIdForUpdate(Long id);
     Optional<Project> findByKey(String projectKey);
     /** Generated ID, timestamps and version come from MySQL; those input fields are ignored. */
     Project insert(Project project);

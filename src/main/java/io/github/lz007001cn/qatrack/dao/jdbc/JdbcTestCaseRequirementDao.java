@@ -67,6 +67,25 @@ public final class JdbcTestCaseRequirementDao implements TestCaseRequirementDao 
         return updateReviewState(requirementId, testCaseId, TraceabilityStatus.REMOVED, null, null);
     }
 
+    @Override public int markConfirmedNeedsReviewByRequirement(Long requirementId) {
+        return invalidateConfirmed("UPDATE test_case_requirements SET status='NEEDS_REVIEW', reviewed_by=NULL, "
+                + "reviewed_at=NULL, updated_at=CURRENT_TIMESTAMP(6) WHERE requirement_id=? AND status='CONFIRMED'",
+                requirementId);
+    }
+
+    @Override public int markConfirmedNeedsReviewByTestCase(Long testCaseId) {
+        return invalidateConfirmed("UPDATE test_case_requirements SET status='NEEDS_REVIEW', reviewed_by=NULL, "
+                + "reviewed_at=NULL, updated_at=CURRENT_TIMESTAMP(6) WHERE test_case_id=? AND status='CONFIRMED'",
+                testCaseId);
+    }
+
+    private int invalidateConfirmed(String sql, Long id) {
+        try (PreparedStatement s = connection.prepareStatement(sql)) {
+            s.setObject(1, id, Types.BIGINT);
+            return s.executeUpdate();
+        } catch (SQLException e) { throw new DataAccessException("Invalidate confirmed traceability", e); }
+    }
+
     private static TestCaseRequirement map(ResultSet rs) throws SQLException {
         try {
             return new TestCaseRequirement(rs.getObject("requirement_id", Long.class), rs.getObject("test_case_id", Long.class),
