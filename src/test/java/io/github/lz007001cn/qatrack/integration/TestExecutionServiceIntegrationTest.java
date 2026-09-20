@@ -3,11 +3,14 @@ package io.github.lz007001cn.qatrack.integration;
 import io.github.lz007001cn.qatrack.exception.DataAccessException;
 import io.github.lz007001cn.qatrack.model.*;
 import io.github.lz007001cn.qatrack.service.DefaultTestExecutionService;
+import io.github.lz007001cn.qatrack.service.TestExecutionService;
 import io.github.lz007001cn.qatrack.service.command.*;
 import io.github.lz007001cn.qatrack.service.exception.*;
 import org.junit.jupiter.api.Test;
+import java.sql.SQLException;
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicInteger;
 import static org.junit.jupiter.api.Assertions.*;
 
 class TestExecutionServiceIntegrationTest extends ServiceFixture {
@@ -79,6 +82,111 @@ class TestExecutionServiceIntegrationTest extends ServiceFixture {
                         .map(TestAttempt::attemptNo).toList());
     }
 
+    @Test void concurrentSameSubmissionKeyAcrossRunCasesProducesBusinessConflict() {
+        RunContext firstContext = runWithCases("KEYCONONE", 1);
+        RunContext secondContext = runWithCases("KEYCONTWO", 1);
+        CountDownLatch atInsert = new CountDownLatch(2);
+        TestExecutionService concurrent = barrierExecution(atInsert);
+        UUID sharedKey = UUID.randomUUID();
+
+        assertTimeoutPreemptively(java.time.Duration.ofSeconds(10), () -> {
+            try (ExecutorService executor = Executors.newFixedThreadPool(2)) {
+                Future<TestAttempt> first = executor.submit(() -> concurrent.recordAttempt(
+                        firstContext.tester().id(), new RecordAttemptCommand(
+                                firstContext.runCases().getFirst().id(), TestAttemptStatus.PASS,
+                                1L, null, null, sharedKey)));
+                Future<TestAttempt> second = executor.submit(() -> concurrent.recordAttempt(
+                        secondContext.tester().id(), new RecordAttemptCommand(
+                                secondContext.runCases().getFirst().id(), TestAttemptStatus.PASS,
+                                1L, null, null, sharedKey)));
+                int accepted = 0;
+                int conflicts = 0;
+                for (Future<TestAttempt> future : List.of(first, second)) {
+                    try {
+                        future.get();
+                        accepted++;
+                    } catch (ExecutionException failure) {
+                        if (!(failure.getCause() instanceof ConflictException)) {
+                            throw new AssertionError("Expected a business conflict", failure.getCause());
+                        }
+                        conflicts++;
+                    }
+                }
+                assertEquals(1, accepted);
+                assertEquals(1, conflicts);
+            }
+        });
+        long rows = execution.listAttempts(firstContext.tester().id(), firstContext.runCases().getFirst().id()).size()
+                + execution.listAttempts(secondContext.tester().id(), secondContext.runCases().getFirst().id()).size();
+        assertEquals(1, rows);
+    }
+
+    @Test void concurrentSameSubmissionKeyAndPayloadReturnsOneAttempt() {
+        RunContext context = runWithCases("KEYSAME", 1);
+        RecordAttemptCommand command = new RecordAttemptCommand(context.runCases().getFirst().id(),
+                TestAttemptStatus.PASS, 1L, "same", null, UUID.randomUUID());
+        CountDownLatch start = new CountDownLatch(1);
+
+        assertTimeoutPreemptively(java.time.Duration.ofSeconds(10), () -> {
+            try (ExecutorService executor = Executors.newFixedThreadPool(2)) {
+                Callable<TestAttempt> submit = () -> {
+                    assertTrue(start.await(5, TimeUnit.SECONDS));
+                    return execution.recordAttempt(context.tester().id(), command);
+                };
+                Future<TestAttempt> first = executor.submit(submit);
+                Future<TestAttempt> second = executor.submit(submit);
+                start.countDown();
+                assertEquals(first.get().id(), second.get().id());
+            }
+        });
+        assertEquals(1, execution.listAttempts(context.tester().id(), command.runCaseId()).size());
+    }
+
+    @Test void concurrentFirstAttemptsAcrossRunCasesSurviveEmptyIndexGapDeadlock() {
+        RunContext firstContext = runWithCases("GAPCONONE", 1);
+        RunContext secondContext = runWithCases("GAPCONTWO", 1);
+        TestExecutionService concurrent = barrierExecution(new CountDownLatch(2));
+
+        assertTimeoutPreemptively(java.time.Duration.ofSeconds(10), () -> {
+            try (ExecutorService executor = Executors.newFixedThreadPool(2)) {
+                Future<TestAttempt> first = executor.submit(() -> concurrent.recordAttempt(
+                        firstContext.tester().id(), new RecordAttemptCommand(
+                                firstContext.runCases().getFirst().id(), TestAttemptStatus.PASS,
+                                1L, null, null, UUID.randomUUID())));
+                Future<TestAttempt> second = executor.submit(() -> concurrent.recordAttempt(
+                        secondContext.tester().id(), new RecordAttemptCommand(
+                                secondContext.runCases().getFirst().id(), TestAttemptStatus.PASS,
+                                1L, null, null, UUID.randomUUID())));
+                assertEquals(1, first.get().attemptNo());
+                assertEquals(1, second.get().attemptNo());
+            }
+        });
+    }
+
+    @Test void deadlockRetryRunsWholeTransactionAtMostOnce() {
+        RunContext context = runWithCases("RETRYONCE", 1);
+        AtomicInteger inserts = new AtomicInteger();
+        var failingFactory = (io.github.lz007001cn.qatrack.service.support.ServiceDaoFactory) connection -> {
+            var daos = jdbcDaos.create(connection);
+            var attempts = new ServiceDaoDelegates.AttemptDelegate(daos.attempts()) {
+                @Override public TestAttempt insert(TestAttempt value) {
+                    inserts.incrementAndGet();
+                    throw new DataAccessException("Injected deadlock", new SQLException(
+                            "Deadlock found when trying to get lock", "40001", 1213));
+                }
+            };
+            return ServiceDaoDelegates.attempts(daos, attempts);
+        };
+        TestExecutionService failing = new DefaultTestExecutionService(
+                serviceTx, failingFactory, access, executionClock);
+        DataAccessException failure = assertThrows(DataAccessException.class, () -> failing.recordAttempt(
+                context.tester().id(), new RecordAttemptCommand(context.runCases().getFirst().id(),
+                        TestAttemptStatus.PASS, 1L, null, null, UUID.randomUUID())));
+        assertEquals(1213, failure.getVendorCode());
+        assertEquals(2, inserts.get());
+        assertTrue(execution.listAttempts(context.tester().id(), context.runCases().getFirst().id()).isEmpty());
+    }
+
     @Test void failedAttemptInsertRollsBackAndNextAcceptedAttemptIsStillOne() {
         RunContext context = runWithCases("ATTEMPTFAIL", 1);
         Long runCaseId = context.runCases().getFirst().id();
@@ -136,6 +244,28 @@ class TestExecutionServiceIntegrationTest extends ServiceFixture {
         TestRun run = testRuns.createAdHoc(tester.id(),
                 new CreateAdHocRunCommand(project.id(), "Run", null, null, ids));
         return new RunContext(admin, tester, project, run, testRuns.listRunCases(tester.id(), run.id()));
+    }
+
+    private TestExecutionService barrierExecution(CountDownLatch atInsert) {
+        var barrierFactory = (io.github.lz007001cn.qatrack.service.support.ServiceDaoFactory) connection -> {
+            var daos = jdbcDaos.create(connection);
+            var attempts = new ServiceDaoDelegates.AttemptDelegate(daos.attempts()) {
+                @Override public TestAttempt insert(TestAttempt value) {
+                    atInsert.countDown();
+                    try {
+                        if (!atInsert.await(5, TimeUnit.SECONDS)) {
+                            throw new AssertionError("Both submissions must reach the attempt insert");
+                        }
+                    } catch (InterruptedException failure) {
+                        Thread.currentThread().interrupt();
+                        throw new AssertionError("Interrupted while coordinating attempt submission", failure);
+                    }
+                    return super.insert(value);
+                }
+            };
+            return ServiceDaoDelegates.attempts(daos, attempts);
+        };
+        return new DefaultTestExecutionService(serviceTx, barrierFactory, access, executionClock);
     }
 
     private record RunContext(User admin, User tester, Project project, TestRun run,

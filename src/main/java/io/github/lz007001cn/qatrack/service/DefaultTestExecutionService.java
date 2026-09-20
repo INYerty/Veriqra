@@ -24,6 +24,26 @@ public final class DefaultTestExecutionService implements TestExecutionService {
 
     @Override public TestAttempt recordAttempt(Long actorUserId, RecordAttemptCommand command) {
         validate(command);
+        try {
+            return appendOnce(actorUserId, command);
+        } catch (DataAccessException failure) {
+            if (failure.getVendorCode() == 1062) {
+                return recoverConcurrentSubmission(actorUserId, command, failure);
+            }
+            if (failure.getVendorCode() != 1213) throw failure;
+            try {
+                return appendOnce(actorUserId, command);
+            } catch (DataAccessException retryFailure) {
+                retryFailure.addSuppressed(failure);
+                if (retryFailure.getVendorCode() == 1062) {
+                    return recoverConcurrentSubmission(actorUserId, command, retryFailure);
+                }
+                throw retryFailure;
+            }
+        }
+    }
+
+    private TestAttempt appendOnce(Long actorUserId, RecordAttemptCommand command) {
         return transactions.execute(connection -> {
             ServiceDaos daos = daoFactory.create(connection);
             TestRunCase preliminaryRunCase = daos.runCases().findById(command.runCaseId())
@@ -41,23 +61,31 @@ public final class DefaultTestExecutionService implements TestExecutionService {
             if (!Objects.equals(runCase.testRunId(), run.id())) {
                 throw new ConflictException("Test run case moved during attempt submission");
             }
-            Optional<TestAttempt> duplicate = daos.attempts().findBySubmissionKeyForUpdate(command.submissionKey());
+            Optional<TestAttempt> duplicate = daos.attempts().findBySubmissionKey(command.submissionKey());
             if (duplicate.isPresent()) return acceptIdempotentRetry(duplicate.get(), actorUserId, command);
             if (run.status() != TestRunStatus.IN_PROGRESS) {
                 throw new ConflictException("Attempts can only be appended to an IN_PROGRESS test run");
             }
             int nextAttempt = daos.attempts().findLatestByRunCaseForUpdate(runCase.id())
                     .map(TestAttempt::attemptNo).map(DefaultTestExecutionService::incrementAttempt).orElse(1);
-            try {
-                return daos.attempts().insert(new TestAttempt(null, runCase.id(), nextAttempt, command.status(),
-                        actorUserId, null, null, LocalDateTime.now(clock), null, command.durationMs(),
-                        command.comment(), command.failureMessage(), command.submissionKey()));
-            } catch (DataAccessException failure) {
-                if (failure.getVendorCode() == 1062) {
-                    throw new ConflictException("Attempt sequence or submission key already exists", failure);
-                }
-                throw failure;
-            }
+            return daos.attempts().insert(new TestAttempt(null, runCase.id(), nextAttempt, command.status(),
+                    actorUserId, null, null, LocalDateTime.now(clock), null, command.durationMs(),
+                    command.comment(), command.failureMessage(), command.submissionKey()));
+        });
+    }
+
+    private TestAttempt recoverConcurrentSubmission(Long actorUserId, RecordAttemptCommand command,
+                                                     DataAccessException originalFailure) {
+        return transactions.execute(connection -> {
+            ServiceDaos daos = daoFactory.create(connection);
+            TestRunCase runCase = daos.runCases().findById(command.runCaseId())
+                    .orElseThrow(() -> new NotFoundException("Test run case does not exist"));
+            TestRun run = daos.testRuns().findById(runCase.testRunId())
+                    .orElseThrow(() -> new NotFoundException("Test run does not exist"));
+            writableProject(daos, actorUserId, run.projectId());
+            TestAttempt existing = daos.attempts().findBySubmissionKey(command.submissionKey())
+                    .orElseThrow(() -> originalFailure);
+            return acceptIdempotentRetry(existing, actorUserId, command);
         });
     }
 

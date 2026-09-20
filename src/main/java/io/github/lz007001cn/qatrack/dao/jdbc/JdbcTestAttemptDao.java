@@ -27,6 +27,10 @@ public final class JdbcTestAttemptDao implements TestAttemptDao {
         return query(SELECT + " WHERE test_run_case_id=? ORDER BY attempt_no", testRunCaseId);
     }
 
+    @Override public List<TestAttempt> listByImport(Long importId) {
+        return query(SELECT + " WHERE import_id=? ORDER BY test_run_case_id, attempt_no", importId);
+    }
+
     @Override public Optional<TestAttempt> findLatestByRunCase(Long testRunCaseId) {
         return query(SELECT + " WHERE test_run_case_id=? ORDER BY attempt_no DESC LIMIT 1", testRunCaseId).stream().findFirst();
     }
@@ -37,19 +41,16 @@ public final class JdbcTestAttemptDao implements TestAttemptDao {
     }
 
     @Override public Optional<TestAttempt> findBySubmissionKey(UUID submissionKey) {
-        return findBySubmissionKey("", submissionKey);
-    }
-
-    @Override public Optional<TestAttempt> findBySubmissionKeyForUpdate(UUID submissionKey) {
-        requireTransaction();
-        return findBySubmissionKey(" FOR UPDATE", submissionKey);
-    }
-
-    private Optional<TestAttempt> findBySubmissionKey(String suffix, UUID submissionKey) {
-        try (PreparedStatement s = connection.prepareStatement(SELECT + " WHERE submission_key=?" + suffix)) {
+        try (PreparedStatement s = connection.prepareStatement(SELECT + " WHERE submission_key=?")) {
             s.setBytes(1, uuidBytes(submissionKey));
             try (ResultSet rs = s.executeQuery()) { return rs.next() ? Optional.of(map(rs)) : Optional.empty(); }
         } catch (SQLException e) { throw new DataAccessException("Find TestAttempt by submission key", e); }
+    }
+
+    @Override public boolean hasAutomationMappingReferenceForUpdate(Long automationMappingId) {
+        requireTransaction();
+        return !query(SELECT + " WHERE automation_mapping_id=? ORDER BY id LIMIT 1 FOR UPDATE",
+                automationMappingId).isEmpty();
     }
 
     private void requireTransaction() {

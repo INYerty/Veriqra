@@ -39,7 +39,6 @@ class TestAttemptDaoIntegrationTest extends ExecutionFixture {
             var input = attempt(e, 1, TestAttemptStatus.FAIL); var saved = dao.insert(input);
             assertEquals(input.submissionKey(), saved.submissionKey());
             assertEquals(saved, dao.findBySubmissionKey(input.submissionKey()).orElseThrow());
-            assertEquals(saved, dao.findBySubmissionKeyForUpdate(input.submissionKey()).orElseThrow());
             assertTrue(dao.findBySubmissionKey(UUID.randomUUID()).isEmpty());
             try (var s = c.prepareStatement("SELECT BIN_TO_UUID(submission_key, 0) FROM test_attempts WHERE id=?")) {
                 s.setLong(1, saved.id()); try (var r = s.executeQuery()) { assertTrue(r.next()); assertEquals(input.submissionKey().toString(), r.getString(1)); }

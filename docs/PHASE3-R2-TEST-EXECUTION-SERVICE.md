@@ -51,13 +51,13 @@ COMPLETED/CANCELLED 均为终态，不 reopen。complete 要求 RunCase 数量�
 
 写入前按 Project → User/Membership → Run → RunCase → Attempt 顺序锁定，并确认 Project ACTIVE、actor 为 ACTIVE ADMIN 或 ACTIVE TESTER、Run 为 IN_PROGRESS、RunCase 属于该 Run。DAO 仍只有 insert/query；旧 Attempt 永不 update/delete。非 FAIL 结果携带 failureMessage 会在 Service 层拒绝，负 duration 也会拒绝。
 
-相同 submissionKey 的顺序重试在锁定当前行后比较业务载荷：完全一致返回原 Attempt，不生成新序号；不同载荷抛 Conflict。该判定先于 Run 终态对“新增 Attempt”的拒绝，因此请求成功后即使 Run 已完成，完全相同的重试仍返回原记录；新令牌仍会被终态拒绝。数据库 UNIQUE 仍是并发冲突的最终边界，Service 不自动 retry。
+相同 submissionKey 的顺序重试比较业务载荷：完全一致返回原 Attempt，不生成新序号；不同载荷抛 Conflict。该判定先于 Run 终态对“新增 Attempt”的拒绝，因此请求成功后即使 Run 已完成，完全相同的重试仍返回原记录；新令牌仍会被终态拒绝。不存在的 submission key 不再使用锁定读，数据库 UNIQUE 是并发裁决点；1062 的原事务回滚后只用新事务恢复并核对载荷。
 
 ## 7. Attempt sequence
 
-序号分配严格复用 Phase 2 协议：先锁 Run，再锁 RunCase，使用 `findLatestByRunCaseForUpdate` 做当前锁定读，空集合分配 1，否则检查 Integer 上界后加一。没有 `SELECT MAX + 1`，没有无锁计算，也没有 DAO 内 retry。
+序号分配严格复用 Phase 2 协议：先锁 Run，再锁 RunCase，使用 `findLatestByRunCaseForUpdate` 做当前锁定读，空集合分配 1，否则检查 Integer 上界后加一。普通读不能替代该 current read，因为事务前置查询已经建立 REPEATABLE READ snapshot。空子集合的锁定读在不同 RunCase 首次并发时可能触发 InnoDB 1213；仅 `TestExecutionService` 在完整原事务已回滚后从头重跑一次，第二次失败直接上抛。没有 `SELECT MAX + 1`、DAO retry 或通用重试框架。
 
-本轮新增两个小 DAO primitive：`findBySubmissionKeyForUpdate` 用于在外层事务内对人工提交令牌进行当前锁定读；`listByTestPlanForUpdate` 用于 Plan 锁后绕过旧 REPEATABLE READ 快照，以当前锁定读复核范围。后者只读取/锁定关系表并按 Case ID 排序，不在 Plan 之后反向锁 TestCase。两者都不包含权限、状态机或事务所有权。
+本轮保留 `listByTestPlanForUpdate`，用于 Plan 锁后绕过旧 REPEATABLE READ 快照，以当前锁定读复核范围；它只读取/锁定关系表并按 Case ID 排序，不在 Plan 之后反向锁 TestCase。Final Service Review 移除了 `findBySubmissionKeyForUpdate`，避免对不存在唯一键加 gap lock。DAO 不包含权限、状态机、事务所有权或 retry。
 
 ## 8. NOT_RUN semantics
 
@@ -87,7 +87,7 @@ Round 1 archive 使用 Project `FOR UPDATE` 后检查 IN_PROGRESS Run。本轮�
 
 ## 11. Transaction boundaries
 
-所有 public Service 操作经 `ServiceTransaction → JdbcServiceTransaction → JdbcTransactionManager` 执行。`JdbcServiceDaoFactory` 在回调给出的同一 Connection 上创建本轮所需 DAO。Service/DAO 没有 commit、rollback、setAutoCommit、第二连接、nested transaction 或自动 retry。
+所有 public Service 操作经 `ServiceTransaction → JdbcServiceTransaction → JdbcTransactionManager` 执行。`JdbcServiceDaoFactory` 在回调给出的同一 Connection 上创建本轮所需 DAO。Service/DAO 没有 commit、rollback、setAutoCommit、第二连接或 nested transaction；DAO 和事务管理器不自动 retry。Final Service Review 只为幂等的 `recordAttempt` 增加了局部、最多一次的 1213 全事务重试。
 
 三个故障注入场景使用真实 MySQL 验证：
 
@@ -118,7 +118,7 @@ Plan-based Run 在加锁前可用普通读取得候选范围，但锁定 Case �
 - 创建 Run 就是 start；如以后需要 PLANNED，必须先修改冻结模型，本轮不伪造。
 - 列表仍为完整列表，没有分页。
 - Attempt 写入因 completion 协调而锁整个 Run；课程规模下优先保证语义清楚，没有提前做细粒度并发优化。
-- submissionKey 支持已提交请求的相同载荷重试；跨不同 Run 的极端并发同 token 仍由数据库 UNIQUE 拒绝，不自动重试。
+- submissionKey 支持已提交请求的相同载荷重试；跨不同 Run 的并发同 token 由数据库 UNIQUE 裁决，原事务回滚后的新事务将相同载荷恢复为原 Attempt、不同载荷转换为 Conflict，不泄露裸 1213。
 - Defect、Automation、Import、Servlet、认证和前端不在本轮。
 
 ## 15. Next round

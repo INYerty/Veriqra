@@ -10,4 +10,7 @@ public record ServiceDaos(UserDao users, ProjectDao projects, ProjectMemberDao m
                            TestPlanDao testPlans, TestPlanCaseDao testPlanCases,
                            TestRunDao testRuns, TestRunCaseDao runCases,
                            TestRunCaseStepDao runCaseSteps, TestAttemptDao attempts,
-                           DefectDao defects, TestAttemptDefectDao attemptDefects) { }
+                           DefectDao defects, TestAttemptDefectDao attemptDefects,
+                           TestAutomationIdentityDao automationIdentities,
+                           TestAutomationMappingDao automationMappings,
+                           TestImportDao imports) { }

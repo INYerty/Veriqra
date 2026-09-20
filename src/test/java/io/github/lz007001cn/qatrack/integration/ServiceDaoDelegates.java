@@ -11,47 +11,62 @@ final class ServiceDaoDelegates {
     static ServiceDaos requirement(ServiceDaos d, RequirementDao replacement) {
         return new ServiceDaos(d.users(), d.projects(), d.members(), d.counters(), replacement,
                 d.testCases(), d.steps(), d.traceability(), d.testPlans(), d.testPlanCases(),
-                d.testRuns(), d.runCases(), d.runCaseSteps(), d.attempts(), d.defects(), d.attemptDefects());
+                d.testRuns(), d.runCases(), d.runCaseSteps(), d.attempts(), d.defects(), d.attemptDefects(),
+                d.automationIdentities(), d.automationMappings(), d.imports());
     }
     static ServiceDaos steps(ServiceDaos d, TestStepDao replacement) {
         return new ServiceDaos(d.users(), d.projects(), d.members(), d.counters(), d.requirements(),
                 d.testCases(), replacement, d.traceability(), d.testPlans(), d.testPlanCases(),
-                d.testRuns(), d.runCases(), d.runCaseSteps(), d.attempts(), d.defects(), d.attemptDefects());
+                d.testRuns(), d.runCases(), d.runCaseSteps(), d.attempts(), d.defects(), d.attemptDefects(),
+                d.automationIdentities(), d.automationMappings(), d.imports());
     }
     static ServiceDaos traceability(ServiceDaos d, TestCaseRequirementDao replacement) {
         return new ServiceDaos(d.users(), d.projects(), d.members(), d.counters(), d.requirements(),
                 d.testCases(), d.steps(), replacement, d.testPlans(), d.testPlanCases(),
-                d.testRuns(), d.runCases(), d.runCaseSteps(), d.attempts(), d.defects(), d.attemptDefects());
+                d.testRuns(), d.runCases(), d.runCaseSteps(), d.attempts(), d.defects(), d.attemptDefects(),
+                d.automationIdentities(), d.automationMappings(), d.imports());
     }
     static ServiceDaos planCases(ServiceDaos d, TestPlanCaseDao replacement) {
         return new ServiceDaos(d.users(), d.projects(), d.members(), d.counters(), d.requirements(),
                 d.testCases(), d.steps(), d.traceability(), d.testPlans(), replacement,
-                d.testRuns(), d.runCases(), d.runCaseSteps(), d.attempts(), d.defects(), d.attemptDefects());
+                d.testRuns(), d.runCases(), d.runCaseSteps(), d.attempts(), d.defects(), d.attemptDefects(),
+                d.automationIdentities(), d.automationMappings(), d.imports());
     }
     static ServiceDaos testRuns(ServiceDaos d, TestRunDao replacement) {
         return new ServiceDaos(d.users(), d.projects(), d.members(), d.counters(), d.requirements(),
                 d.testCases(), d.steps(), d.traceability(), d.testPlans(), d.testPlanCases(),
-                replacement, d.runCases(), d.runCaseSteps(), d.attempts(), d.defects(), d.attemptDefects());
+                replacement, d.runCases(), d.runCaseSteps(), d.attempts(), d.defects(), d.attemptDefects(),
+                d.automationIdentities(), d.automationMappings(), d.imports());
     }
     static ServiceDaos runCaseSteps(ServiceDaos d, TestRunCaseStepDao replacement) {
         return new ServiceDaos(d.users(), d.projects(), d.members(), d.counters(), d.requirements(),
                 d.testCases(), d.steps(), d.traceability(), d.testPlans(), d.testPlanCases(),
-                d.testRuns(), d.runCases(), replacement, d.attempts(), d.defects(), d.attemptDefects());
+                d.testRuns(), d.runCases(), replacement, d.attempts(), d.defects(), d.attemptDefects(),
+                d.automationIdentities(), d.automationMappings(), d.imports());
     }
     static ServiceDaos attempts(ServiceDaos d, TestAttemptDao replacement) {
         return new ServiceDaos(d.users(), d.projects(), d.members(), d.counters(), d.requirements(),
                 d.testCases(), d.steps(), d.traceability(), d.testPlans(), d.testPlanCases(),
-                d.testRuns(), d.runCases(), d.runCaseSteps(), replacement, d.defects(), d.attemptDefects());
+                d.testRuns(), d.runCases(), d.runCaseSteps(), replacement, d.defects(), d.attemptDefects(),
+                d.automationIdentities(), d.automationMappings(), d.imports());
     }
     static ServiceDaos defects(ServiceDaos d, DefectDao replacement) {
         return new ServiceDaos(d.users(), d.projects(), d.members(), d.counters(), d.requirements(),
                 d.testCases(), d.steps(), d.traceability(), d.testPlans(), d.testPlanCases(),
-                d.testRuns(), d.runCases(), d.runCaseSteps(), d.attempts(), replacement, d.attemptDefects());
+                d.testRuns(), d.runCases(), d.runCaseSteps(), d.attempts(), replacement, d.attemptDefects(),
+                d.automationIdentities(), d.automationMappings(), d.imports());
     }
     static ServiceDaos attemptDefects(ServiceDaos d, TestAttemptDefectDao replacement) {
         return new ServiceDaos(d.users(), d.projects(), d.members(), d.counters(), d.requirements(),
                 d.testCases(), d.steps(), d.traceability(), d.testPlans(), d.testPlanCases(),
-                d.testRuns(), d.runCases(), d.runCaseSteps(), d.attempts(), d.defects(), replacement);
+                d.testRuns(), d.runCases(), d.runCaseSteps(), d.attempts(), d.defects(), replacement,
+                d.automationIdentities(), d.automationMappings(), d.imports());
+    }
+    static ServiceDaos automationIdentities(ServiceDaos d, TestAutomationIdentityDao replacement) {
+        return new ServiceDaos(d.users(), d.projects(), d.members(), d.counters(), d.requirements(),
+                d.testCases(), d.steps(), d.traceability(), d.testPlans(), d.testPlanCases(),
+                d.testRuns(), d.runCases(), d.runCaseSteps(), d.attempts(), d.defects(), d.attemptDefects(),
+                replacement, d.automationMappings(), d.imports());
     }
 
     abstract static class RequirementDelegate implements RequirementDao {
@@ -123,11 +138,12 @@ final class ServiceDaoDelegates {
         public Optional<TestAttempt> findById(Long id) { return target.findById(id); }
         public Optional<TestAttempt> findByIdForUpdate(Long id) { return target.findByIdForUpdate(id); }
         public List<TestAttempt> listByRunCase(Long id) { return target.listByRunCase(id); }
+        public List<TestAttempt> listByImport(Long id) { return target.listByImport(id); }
         public Optional<TestAttempt> findLatestByRunCase(Long id) { return target.findLatestByRunCase(id); }
         public Optional<TestAttempt> findLatestByRunCaseForUpdate(Long id) { return target.findLatestByRunCaseForUpdate(id); }
         public Optional<TestAttempt> findBySubmissionKey(java.util.UUID key) { return target.findBySubmissionKey(key); }
-        public Optional<TestAttempt> findBySubmissionKeyForUpdate(java.util.UUID key) {
-            return target.findBySubmissionKeyForUpdate(key);
+        public boolean hasAutomationMappingReferenceForUpdate(Long id) {
+            return target.hasAutomationMappingReferenceForUpdate(id);
         }
         public TestAttempt insert(TestAttempt value) { return target.insert(value); }
     }
@@ -140,6 +156,19 @@ final class ServiceDaoDelegates {
         public List<Defect> listByProject(Long p) { return target.listByProject(p); }
         public Defect insert(Defect value) { return target.insert(value); }
         public Defect update(Defect value) { return target.update(value); }
+    }
+
+    abstract static class AutomationIdentityDelegate implements TestAutomationIdentityDao {
+        protected final TestAutomationIdentityDao target;
+        AutomationIdentityDelegate(TestAutomationIdentityDao target) { this.target = target; }
+        public TestAutomationIdentity insert(TestAutomationIdentity value) { return target.insert(value); }
+        public Optional<TestAutomationIdentity> findById(Long id) { return target.findById(id); }
+        public Optional<TestAutomationIdentity> findByExternalKey(Long projectId, AutomationSource source,
+                                                                  String namespace, String externalKey) {
+            return target.findByExternalKey(projectId, source, namespace, externalKey);
+        }
+        public List<TestAutomationIdentity> listByProject(Long projectId) { return target.listByProject(projectId); }
+        public Optional<TestAutomationIdentity> findByIdForUpdate(Long id) { return target.findByIdForUpdate(id); }
     }
     abstract static class AttemptDefectDelegate implements TestAttemptDefectDao {
         final TestAttemptDefectDao target;
