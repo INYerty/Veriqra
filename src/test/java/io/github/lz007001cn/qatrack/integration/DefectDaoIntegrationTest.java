@@ -14,6 +14,7 @@ class DefectDaoIntegrationTest extends ExecutionFixture {
             var first = dao.insert(defect(p, 1));
             assertEquals(List.of(first, original), dao.listByProject(p.projectId()));
             assertEquals(original, dao.findById(original.id()).orElseThrow());
+            assertEquals(original, dao.findByIdForUpdate(original.id()).orElseThrow());
             assertEquals(original, dao.findByKey(p.projectId(), 2L).orElseThrow());
             assertTrue(dao.findById(-1L).isEmpty()); assertTrue(dao.findByKey(-1L, 2L).isEmpty());
             assertNull(original.assigneeId()); assertEquals(0, original.lockVersion());

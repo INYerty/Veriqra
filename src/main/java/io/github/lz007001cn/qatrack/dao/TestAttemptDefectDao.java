@@ -12,6 +12,8 @@ public interface TestAttemptDefectDao {
     List<TestAttemptDefect> listDefectsByAttempt(Long attemptId);
     /** Returns association records, ordered by attempt ID. */
     List<TestAttemptDefect> listAttemptsByDefect(Long defectId);
+    /** Current locking read of the evidence set; caller locks Attempt hierarchy, then Defect first. */
+    List<TestAttemptDefect> listAttemptsByDefectForUpdate(Long defectId);
     /** Correct an erroneous association only; never removes either endpoint. */
     boolean remove(Long attemptId, Long defectId);
 }

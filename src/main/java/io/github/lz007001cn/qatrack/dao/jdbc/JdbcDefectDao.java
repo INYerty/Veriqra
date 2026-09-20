@@ -17,6 +17,11 @@ public final class JdbcDefectDao implements DefectDao {
         return query(SELECT + " WHERE id=?", id).stream().findFirst();
     }
 
+    @Override public Optional<Defect> findByIdForUpdate(Long id) {
+        requireTransaction();
+        return query(SELECT + " WHERE id=? FOR UPDATE", id).stream().findFirst();
+    }
+
     @Override public Optional<Defect> findByKey(Long projectId, Long keyNo) {
         return query(SELECT + " WHERE project_id=? AND key_no=?", projectId, keyNo).stream().findFirst();
     }
@@ -34,6 +39,12 @@ public final class JdbcDefectDao implements DefectDao {
                 return List.copyOf(rows);
             }
         } catch (SQLException e) { throw new DataAccessException("Find Defect", e); }
+    }
+
+    private void requireTransaction() {
+        try {
+            if (connection.getAutoCommit()) throw new SQLException("Defect locking requires an outer transaction", "25000");
+        } catch (SQLException e) { throw new DataAccessException("Lock Defect", e); }
     }
 
     @Override public Defect insert(Defect value) {

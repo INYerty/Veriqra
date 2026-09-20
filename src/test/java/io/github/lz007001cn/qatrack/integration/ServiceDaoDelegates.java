@@ -11,37 +11,47 @@ final class ServiceDaoDelegates {
     static ServiceDaos requirement(ServiceDaos d, RequirementDao replacement) {
         return new ServiceDaos(d.users(), d.projects(), d.members(), d.counters(), replacement,
                 d.testCases(), d.steps(), d.traceability(), d.testPlans(), d.testPlanCases(),
-                d.testRuns(), d.runCases(), d.runCaseSteps(), d.attempts());
+                d.testRuns(), d.runCases(), d.runCaseSteps(), d.attempts(), d.defects(), d.attemptDefects());
     }
     static ServiceDaos steps(ServiceDaos d, TestStepDao replacement) {
         return new ServiceDaos(d.users(), d.projects(), d.members(), d.counters(), d.requirements(),
                 d.testCases(), replacement, d.traceability(), d.testPlans(), d.testPlanCases(),
-                d.testRuns(), d.runCases(), d.runCaseSteps(), d.attempts());
+                d.testRuns(), d.runCases(), d.runCaseSteps(), d.attempts(), d.defects(), d.attemptDefects());
     }
     static ServiceDaos traceability(ServiceDaos d, TestCaseRequirementDao replacement) {
         return new ServiceDaos(d.users(), d.projects(), d.members(), d.counters(), d.requirements(),
                 d.testCases(), d.steps(), replacement, d.testPlans(), d.testPlanCases(),
-                d.testRuns(), d.runCases(), d.runCaseSteps(), d.attempts());
+                d.testRuns(), d.runCases(), d.runCaseSteps(), d.attempts(), d.defects(), d.attemptDefects());
     }
     static ServiceDaos planCases(ServiceDaos d, TestPlanCaseDao replacement) {
         return new ServiceDaos(d.users(), d.projects(), d.members(), d.counters(), d.requirements(),
                 d.testCases(), d.steps(), d.traceability(), d.testPlans(), replacement,
-                d.testRuns(), d.runCases(), d.runCaseSteps(), d.attempts());
+                d.testRuns(), d.runCases(), d.runCaseSteps(), d.attempts(), d.defects(), d.attemptDefects());
     }
     static ServiceDaos testRuns(ServiceDaos d, TestRunDao replacement) {
         return new ServiceDaos(d.users(), d.projects(), d.members(), d.counters(), d.requirements(),
                 d.testCases(), d.steps(), d.traceability(), d.testPlans(), d.testPlanCases(),
-                replacement, d.runCases(), d.runCaseSteps(), d.attempts());
+                replacement, d.runCases(), d.runCaseSteps(), d.attempts(), d.defects(), d.attemptDefects());
     }
     static ServiceDaos runCaseSteps(ServiceDaos d, TestRunCaseStepDao replacement) {
         return new ServiceDaos(d.users(), d.projects(), d.members(), d.counters(), d.requirements(),
                 d.testCases(), d.steps(), d.traceability(), d.testPlans(), d.testPlanCases(),
-                d.testRuns(), d.runCases(), replacement, d.attempts());
+                d.testRuns(), d.runCases(), replacement, d.attempts(), d.defects(), d.attemptDefects());
     }
     static ServiceDaos attempts(ServiceDaos d, TestAttemptDao replacement) {
         return new ServiceDaos(d.users(), d.projects(), d.members(), d.counters(), d.requirements(),
                 d.testCases(), d.steps(), d.traceability(), d.testPlans(), d.testPlanCases(),
-                d.testRuns(), d.runCases(), d.runCaseSteps(), replacement);
+                d.testRuns(), d.runCases(), d.runCaseSteps(), replacement, d.defects(), d.attemptDefects());
+    }
+    static ServiceDaos defects(ServiceDaos d, DefectDao replacement) {
+        return new ServiceDaos(d.users(), d.projects(), d.members(), d.counters(), d.requirements(),
+                d.testCases(), d.steps(), d.traceability(), d.testPlans(), d.testPlanCases(),
+                d.testRuns(), d.runCases(), d.runCaseSteps(), d.attempts(), replacement, d.attemptDefects());
+    }
+    static ServiceDaos attemptDefects(ServiceDaos d, TestAttemptDefectDao replacement) {
+        return new ServiceDaos(d.users(), d.projects(), d.members(), d.counters(), d.requirements(),
+                d.testCases(), d.steps(), d.traceability(), d.testPlans(), d.testPlanCases(),
+                d.testRuns(), d.runCases(), d.runCaseSteps(), d.attempts(), d.defects(), replacement);
     }
 
     abstract static class RequirementDelegate implements RequirementDao {
@@ -111,6 +121,7 @@ final class ServiceDaoDelegates {
         final TestAttemptDao target;
         AttemptDelegate(TestAttemptDao target) { this.target = target; }
         public Optional<TestAttempt> findById(Long id) { return target.findById(id); }
+        public Optional<TestAttempt> findByIdForUpdate(Long id) { return target.findByIdForUpdate(id); }
         public List<TestAttempt> listByRunCase(Long id) { return target.listByRunCase(id); }
         public Optional<TestAttempt> findLatestByRunCase(Long id) { return target.findLatestByRunCase(id); }
         public Optional<TestAttempt> findLatestByRunCaseForUpdate(Long id) { return target.findLatestByRunCaseForUpdate(id); }
@@ -119,5 +130,28 @@ final class ServiceDaoDelegates {
             return target.findBySubmissionKeyForUpdate(key);
         }
         public TestAttempt insert(TestAttempt value) { return target.insert(value); }
+    }
+    abstract static class DefectDelegate implements DefectDao {
+        final DefectDao target;
+        DefectDelegate(DefectDao target) { this.target = target; }
+        public Optional<Defect> findById(Long id) { return target.findById(id); }
+        public Optional<Defect> findByIdForUpdate(Long id) { return target.findByIdForUpdate(id); }
+        public Optional<Defect> findByKey(Long p, Long k) { return target.findByKey(p, k); }
+        public List<Defect> listByProject(Long p) { return target.listByProject(p); }
+        public Defect insert(Defect value) { return target.insert(value); }
+        public Defect update(Defect value) { return target.update(value); }
+    }
+    abstract static class AttemptDefectDelegate implements TestAttemptDefectDao {
+        final TestAttemptDefectDao target;
+        AttemptDefectDelegate(TestAttemptDefectDao target) { this.target = target; }
+        public TestAttemptDefect add(TestAttemptDefect value) { return target.add(value); }
+        public Optional<TestAttemptDefect> find(Long a, Long d) { return target.find(a, d); }
+        public boolean existsRecord(Long a, Long d) { return target.existsRecord(a, d); }
+        public List<TestAttemptDefect> listDefectsByAttempt(Long a) { return target.listDefectsByAttempt(a); }
+        public List<TestAttemptDefect> listAttemptsByDefect(Long d) { return target.listAttemptsByDefect(d); }
+        public List<TestAttemptDefect> listAttemptsByDefectForUpdate(Long d) {
+            return target.listAttemptsByDefectForUpdate(d);
+        }
+        public boolean remove(Long a, Long d) { return target.remove(a, d); }
     }
 }

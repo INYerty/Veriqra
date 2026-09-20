@@ -19,6 +19,7 @@ abstract class ServiceFixture extends MysqlFixture {
     protected TestPlanService testPlans;
     protected TestRunService testRuns;
     protected TestExecutionService execution;
+    protected DefectService defects;
     protected final Clock clock = Clock.fixed(Instant.parse("2026-09-16T00:00:00Z"), ZoneOffset.UTC);
     protected final Clock executionClock = Clock.fixed(Instant.parse("2030-01-01T00:00:00Z"), ZoneOffset.UTC);
 
@@ -33,6 +34,7 @@ abstract class ServiceFixture extends MysqlFixture {
         testPlans = new DefaultTestPlanService(serviceTx, jdbcDaos, access);
         testRuns = new DefaultTestRunService(serviceTx, jdbcDaos, access, executionClock);
         execution = new DefaultTestExecutionService(serviceTx, jdbcDaos, access, executionClock);
+        defects = new DefaultDefectService(serviceTx, jdbcDaos, access);
     }
 
     protected User actor(String username, SystemRole role, UserStatus status) {

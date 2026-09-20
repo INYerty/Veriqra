@@ -21,7 +21,8 @@ class TestAttemptDaoIntegrationTest extends ExecutionFixture {
             var fail = dao.insert(attempt(e, 1, TestAttemptStatus.FAIL));
             assertEquals(List.of(fail, pass), dao.listByRunCase(e.runCase().id()));
             assertEquals(pass, dao.findLatestByRunCase(e.runCase().id()).orElseThrow());
-            assertEquals(fail, dao.findById(fail.id()).orElseThrow()); assertNotNull(fail.failureMessage());
+            assertEquals(fail, dao.findById(fail.id()).orElseThrow());
+            assertEquals(fail, dao.findByIdForUpdate(fail.id()).orElseThrow()); assertNotNull(fail.failureMessage());
             assertEquals(123456000, fail.executedAt().getNano()); assertEquals(123L, fail.durationMs());
             assertNull(pass.durationMs()); assertNull(pass.comment()); assertNull(pass.importId()); assertNull(pass.automationMappingId());
             assertNotNull(pass.recordedAt()); assertTrue(dao.findById(-1L).isEmpty());

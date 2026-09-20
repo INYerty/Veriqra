@@ -34,6 +34,10 @@ public final class JdbcTestAttemptDefectDao implements TestAttemptDefectDao {
     @Override public List<TestAttemptDefect> listAttemptsByDefect(Long defectId) {
         return query(SELECT + " WHERE pc.defect_id=? ORDER BY pc.attempt_id", defectId);
     }
+    @Override public List<TestAttemptDefect> listAttemptsByDefectForUpdate(Long defectId) {
+        requireTransaction();
+        return query(SELECT + " WHERE pc.defect_id=? ORDER BY pc.attempt_id FOR UPDATE", defectId);
+    }
     private List<TestAttemptDefect> query(String sql, Long... values) {
         try (PreparedStatement s = connection.prepareStatement(sql)) {
             for (int i = 0; i < values.length; i++) s.setObject(i + 1, values[i], Types.BIGINT);
@@ -44,6 +48,11 @@ public final class JdbcTestAttemptDefectDao implements TestAttemptDefectDao {
                 return List.copyOf(rows);
             }
         } catch (SQLException e) { throw new DataAccessException("Find TestAttemptDefect", e); }
+    }
+    private void requireTransaction() {
+        try {
+            if (connection.getAutoCommit()) throw new SQLException("Evidence locking requires an outer transaction", "25000");
+        } catch (SQLException e) { throw new DataAccessException("Lock TestAttemptDefect", e); }
     }
     @Override public boolean remove(Long attemptId, Long defectId) {
         try (PreparedStatement s = connection.prepareStatement("DELETE FROM test_attempt_defects WHERE attempt_id=? AND defect_id=?")) {

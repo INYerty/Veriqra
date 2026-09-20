@@ -9,4 +9,5 @@ public record ServiceDaos(UserDao users, ProjectDao projects, ProjectMemberDao m
                            TestCaseRequirementDao traceability,
                            TestPlanDao testPlans, TestPlanCaseDao testPlanCases,
                            TestRunDao testRuns, TestRunCaseDao runCases,
-                           TestRunCaseStepDao runCaseSteps, TestAttemptDao attempts) { }
+                           TestRunCaseStepDao runCaseSteps, TestAttemptDao attempts,
+                           DefectDao defects, TestAttemptDefectDao attemptDefects) { }

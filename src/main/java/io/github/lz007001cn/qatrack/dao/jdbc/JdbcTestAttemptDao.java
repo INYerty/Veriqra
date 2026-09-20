@@ -18,6 +18,11 @@ public final class JdbcTestAttemptDao implements TestAttemptDao {
         return query(SELECT + " WHERE id=?", id).stream().findFirst();
     }
 
+    @Override public Optional<TestAttempt> findByIdForUpdate(Long id) {
+        requireTransaction();
+        return query(SELECT + " WHERE id=? FOR UPDATE", id).stream().findFirst();
+    }
+
     @Override public List<TestAttempt> listByRunCase(Long testRunCaseId) {
         return query(SELECT + " WHERE test_run_case_id=? ORDER BY attempt_no", testRunCaseId);
     }

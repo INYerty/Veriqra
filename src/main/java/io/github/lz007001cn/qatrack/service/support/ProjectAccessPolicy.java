@@ -45,6 +45,19 @@ public final class ProjectAccessPolicy {
         return actor;
     }
 
+    /** Active ADMIN or any ACTIVE project member; used by Defect reporting/processing only. */
+    public User requireProjectMemberWrite(UserDao users, ProjectMemberDao members,
+                                          Long actorUserId, Long projectId) {
+        User actor = requireActiveLockedUser(users, actorUserId);
+        if (actor.systemRole() == SystemRole.ADMIN) return actor;
+        ProjectMember member = members.findForShare(projectId, actorUserId)
+                .orElseThrow(() -> new ForbiddenException("Active project membership is required"));
+        if (member.status() != MembershipStatus.ACTIVE) {
+            throw new ForbiddenException("Active project membership is required");
+        }
+        return actor;
+    }
+
     private User requireActiveLockedUser(UserDao users, Long actorUserId) {
         if (actorUserId == null) throw new ForbiddenException("An authenticated actor is required");
         User actor = users.findByIdForShare(actorUserId)

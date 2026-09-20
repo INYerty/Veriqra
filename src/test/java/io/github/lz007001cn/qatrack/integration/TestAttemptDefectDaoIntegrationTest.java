@@ -21,6 +21,7 @@ class TestAttemptDefectDaoIntegrationTest extends ExecutionFixture {
             assertNotNull(link11.linkedAt()); assertEquals(link11, dao.find(fail1.id(), bug1.id()).orElseThrow());
             assertEquals(List.of(link11, link12), dao.listDefectsByAttempt(fail1.id()));
             assertEquals(List.of(link11, link21), dao.listAttemptsByDefect(bug1.id()));
+            assertEquals(List.of(link11, link21), dao.listAttemptsByDefectForUpdate(bug1.id()));
             attempts.insert(attempt(e, 3, TestAttemptStatus.PASS));
             assertTrue(dao.existsRecord(fail1.id(), bug1.id())); assertEquals(DefectStatus.OPEN, defects.findById(bug1.id()).orElseThrow().status());
             assertTrue(dao.remove(fail1.id(), bug1.id())); assertFalse(dao.remove(fail1.id(), bug1.id()));
