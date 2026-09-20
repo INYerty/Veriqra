@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<web-app xmlns="https://jakarta.ee/xml/ns/jakartaee"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="https://jakarta.ee/xml/ns/jakartaee https://jakarta.ee/xml/ns/jakartaee/web-app_6_0.xsd"
+         version="6.0" metadata-complete="true">
+    <display-name>QATrack</display-name>
+    <listener>
+        <listener-class>io.github.lz007001cn.qatrack.bootstrap.ApplicationListener</listener-class>
+    </listener>
+    <filter>
+        <filter-name>apiErrors</filter-name>
+        <filter-class>io.github.lz007001cn.qatrack.web.ApiExceptionFilter</filter-class>
+    </filter>
+    <filter-mapping>
+        <filter-name>apiErrors</filter-name>
+        <url-pattern>/api/*</url-pattern>
+        <dispatcher>REQUEST</dispatcher>
+    </filter-mapping>
+    <filter>
+        <filter-name>authentication</filter-name>
+        <filter-class>io.github.lz007001cn.qatrack.web.AuthenticationFilter</filter-class>
+    </filter>
+    <filter-mapping>
+        <filter-name>authentication</filter-name>
+        <url-pattern>/api/*</url-pattern>
+        <dispatcher>REQUEST</dispatcher>
+    </filter-mapping>
+    <servlet>
+        <servlet-name>api</servlet-name>
+        <servlet-class>io.github.lz007001cn.qatrack.web.ApiServlet</servlet-class>
+        <load-on-startup>1</load-on-startup>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>api</servlet-name>
+        <url-pattern>/api/*</url-pattern>
+    </servlet-mapping>
+    <session-config>
+        <session-timeout>30</session-timeout>
+        <cookie-config><http-only>true</http-only></cookie-config>
+        <tracking-mode>COOKIE</tracking-mode>
+    </session-config>
+</web-app>

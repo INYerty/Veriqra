@@ -5,6 +5,7 @@ import java.util.Optional;
 
 /** Row persistence without project authorization, counters or membership business rules. */
 public interface ProjectDao {
+    java.util.List<Project> listAll();
     Optional<Project> findById(Long id);
     /** Requires an outer transaction; coordinates project-scoped writes without blocking other readers. */
     Optional<Project> findByIdForShare(Long id);

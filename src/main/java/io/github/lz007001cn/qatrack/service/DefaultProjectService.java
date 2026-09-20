@@ -56,6 +56,20 @@ public final class DefaultProjectService implements ProjectService {
         });
     }
 
+    @Override public java.util.List<Project> list(Long actorUserId) {
+        return transactions.execute(connection -> {
+            ServiceDaos daos = daoFactory.create(connection);
+            User actor = access.requireActiveUser(daos.users(), actorUserId);
+            if (actor.systemRole() == SystemRole.ADMIN) return daos.projects().listAll();
+            var rows = new java.util.ArrayList<Project>();
+            for (ProjectMember member : daos.members().listByUser(actor.id(), MembershipStatus.ACTIVE)) {
+                daos.projects().findById(member.projectId()).ifPresent(rows::add);
+            }
+            rows.sort(java.util.Comparator.comparing(Project::id));
+            return java.util.List.copyOf(rows);
+        });
+    }
+
     @Override public Project get(Long actorUserId, Long projectId) {
         ServiceValidation.required(projectId, "projectId");
         return transactions.execute(connection -> {

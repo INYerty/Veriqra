@@ -16,6 +16,15 @@ public final class JdbcProjectDao implements ProjectDao {
 
     public JdbcProjectDao(Connection connection) { this.connection = Objects.requireNonNull(connection); }
 
+    @Override public java.util.List<Project> listAll() {
+        try (PreparedStatement s = connection.prepareStatement("SELECT " + COLUMNS + " FROM projects ORDER BY id");
+             ResultSet rs = s.executeQuery()) {
+            var rows = new java.util.ArrayList<Project>();
+            while (rs.next()) rows.add(map(rs));
+            return java.util.List.copyOf(rows);
+        } catch (SQLException e) { throw new DataAccessException("List Projects", e); }
+    }
+
     @Override public Optional<Project> findById(Long id) {
         return find("SELECT " + COLUMNS + " FROM projects WHERE id=?", id, Types.BIGINT);
     }
