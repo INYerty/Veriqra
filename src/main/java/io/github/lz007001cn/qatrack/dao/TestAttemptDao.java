@@ -13,6 +13,8 @@ public interface TestAttemptDao {
      * Caller supplies the next positive sequence within Integer range; no automatic allocation/retry. */
     Optional<TestAttempt> findLatestByRunCaseForUpdate(Long testRunCaseId);
     Optional<TestAttempt> findBySubmissionKey(UUID submissionKey);
+    /** Current locking read for manual submission idempotency; requires an outer transaction. */
+    Optional<TestAttempt> findBySubmissionKeyForUpdate(UUID submissionKey);
     /** Ignores generated fields; insert and readback belong in an outer transaction. */
     TestAttempt insert(TestAttempt value);
 }

@@ -10,15 +10,38 @@ final class ServiceDaoDelegates {
     private ServiceDaoDelegates() { }
     static ServiceDaos requirement(ServiceDaos d, RequirementDao replacement) {
         return new ServiceDaos(d.users(), d.projects(), d.members(), d.counters(), replacement,
-                d.testCases(), d.steps(), d.traceability(), d.testRuns());
+                d.testCases(), d.steps(), d.traceability(), d.testPlans(), d.testPlanCases(),
+                d.testRuns(), d.runCases(), d.runCaseSteps(), d.attempts());
     }
     static ServiceDaos steps(ServiceDaos d, TestStepDao replacement) {
         return new ServiceDaos(d.users(), d.projects(), d.members(), d.counters(), d.requirements(),
-                d.testCases(), replacement, d.traceability(), d.testRuns());
+                d.testCases(), replacement, d.traceability(), d.testPlans(), d.testPlanCases(),
+                d.testRuns(), d.runCases(), d.runCaseSteps(), d.attempts());
     }
     static ServiceDaos traceability(ServiceDaos d, TestCaseRequirementDao replacement) {
         return new ServiceDaos(d.users(), d.projects(), d.members(), d.counters(), d.requirements(),
-                d.testCases(), d.steps(), replacement, d.testRuns());
+                d.testCases(), d.steps(), replacement, d.testPlans(), d.testPlanCases(),
+                d.testRuns(), d.runCases(), d.runCaseSteps(), d.attempts());
+    }
+    static ServiceDaos planCases(ServiceDaos d, TestPlanCaseDao replacement) {
+        return new ServiceDaos(d.users(), d.projects(), d.members(), d.counters(), d.requirements(),
+                d.testCases(), d.steps(), d.traceability(), d.testPlans(), replacement,
+                d.testRuns(), d.runCases(), d.runCaseSteps(), d.attempts());
+    }
+    static ServiceDaos testRuns(ServiceDaos d, TestRunDao replacement) {
+        return new ServiceDaos(d.users(), d.projects(), d.members(), d.counters(), d.requirements(),
+                d.testCases(), d.steps(), d.traceability(), d.testPlans(), d.testPlanCases(),
+                replacement, d.runCases(), d.runCaseSteps(), d.attempts());
+    }
+    static ServiceDaos runCaseSteps(ServiceDaos d, TestRunCaseStepDao replacement) {
+        return new ServiceDaos(d.users(), d.projects(), d.members(), d.counters(), d.requirements(),
+                d.testCases(), d.steps(), d.traceability(), d.testPlans(), d.testPlanCases(),
+                d.testRuns(), d.runCases(), replacement, d.attempts());
+    }
+    static ServiceDaos attempts(ServiceDaos d, TestAttemptDao replacement) {
+        return new ServiceDaos(d.users(), d.projects(), d.members(), d.counters(), d.requirements(),
+                d.testCases(), d.steps(), d.traceability(), d.testPlans(), d.testPlanCases(),
+                d.testRuns(), d.runCases(), d.runCaseSteps(), replacement);
     }
 
     abstract static class RequirementDelegate implements RequirementDao {
@@ -55,5 +78,46 @@ final class ServiceDaoDelegates {
         public boolean markRemoved(Long r, Long c) { return target.markRemoved(r, c); }
         public int markConfirmedNeedsReviewByRequirement(Long r) { return target.markConfirmedNeedsReviewByRequirement(r); }
         public int markConfirmedNeedsReviewByTestCase(Long c) { return target.markConfirmedNeedsReviewByTestCase(c); }
+    }
+    abstract static class PlanCaseDelegate implements TestPlanCaseDao {
+        final TestPlanCaseDao target;
+        PlanCaseDelegate(TestPlanCaseDao target) { this.target = target; }
+        public TestPlanCase add(TestPlanCase value) { return target.add(value); }
+        public Optional<TestPlanCase> find(Long p, Long c) { return target.find(p, c); }
+        public boolean exists(Long p, Long c) { return target.exists(p, c); }
+        public List<TestPlanCase> listByTestPlan(Long p) { return target.listByTestPlan(p); }
+        public List<TestPlanCase> listByTestPlanForUpdate(Long p) { return target.listByTestPlanForUpdate(p); }
+        public List<TestPlanCase> listByTestCase(Long c) { return target.listByTestCase(c); }
+        public boolean remove(Long p, Long c) { return target.remove(p, c); }
+    }
+    abstract static class TestRunDelegate implements TestRunDao {
+        final TestRunDao target;
+        TestRunDelegate(TestRunDao target) { this.target = target; }
+        public Optional<TestRun> findById(Long id) { return target.findById(id); }
+        public Optional<TestRun> findByIdForUpdate(Long id) { return target.findByIdForUpdate(id); }
+        public List<TestRun> listByProject(Long id) { return target.listByProject(id); }
+        public List<TestRun> listByPlan(Long id) { return target.listByPlan(id); }
+        public TestRun insert(TestRun value) { return target.insert(value); }
+        public TestRun update(TestRun value) { return target.update(value); }
+    }
+    abstract static class RunCaseStepDelegate implements TestRunCaseStepDao {
+        final TestRunCaseStepDao target;
+        RunCaseStepDelegate(TestRunCaseStepDao target) { this.target = target; }
+        public TestRunCaseStep insert(TestRunCaseStep value) { return target.insert(value); }
+        public Optional<TestRunCaseStep> find(Long id, Integer order) { return target.find(id, order); }
+        public List<TestRunCaseStep> listByRunCase(Long id) { return target.listByRunCase(id); }
+    }
+    abstract static class AttemptDelegate implements TestAttemptDao {
+        final TestAttemptDao target;
+        AttemptDelegate(TestAttemptDao target) { this.target = target; }
+        public Optional<TestAttempt> findById(Long id) { return target.findById(id); }
+        public List<TestAttempt> listByRunCase(Long id) { return target.listByRunCase(id); }
+        public Optional<TestAttempt> findLatestByRunCase(Long id) { return target.findLatestByRunCase(id); }
+        public Optional<TestAttempt> findLatestByRunCaseForUpdate(Long id) { return target.findLatestByRunCaseForUpdate(id); }
+        public Optional<TestAttempt> findBySubmissionKey(java.util.UUID key) { return target.findBySubmissionKey(key); }
+        public Optional<TestAttempt> findBySubmissionKeyForUpdate(java.util.UUID key) {
+            return target.findBySubmissionKeyForUpdate(key);
+        }
+        public TestAttempt insert(TestAttempt value) { return target.insert(value); }
     }
 }

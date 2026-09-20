@@ -6,4 +6,7 @@ import io.github.lz007001cn.qatrack.dao.*;
 public record ServiceDaos(UserDao users, ProjectDao projects, ProjectMemberDao members,
                            ProjectCounterDao counters, RequirementDao requirements,
                            TestCaseDao testCases, TestStepDao steps,
-                           TestCaseRequirementDao traceability, TestRunDao testRuns) { }
+                           TestCaseRequirementDao traceability,
+                           TestPlanDao testPlans, TestPlanCaseDao testPlanCases,
+                           TestRunDao testRuns, TestRunCaseDao runCases,
+                           TestRunCaseStepDao runCaseSteps, TestAttemptDao attempts) { }

@@ -51,4 +51,25 @@ class TestPlanCaseDaoIntegrationTest extends AssetFixture {
             throw new IllegalStateException("rollback Service-invariant probe");
         }));
     }
+
+    @Test void lockingScopeReadSeesCommitAfterEarlierRepeatableReadSnapshot() throws Exception {
+        record Scope(TestPlan plan, TestCase testCase, Long userId) { }
+        Scope scope = tx.inTransaction(c -> {
+            var p = parents(c);
+            return new Scope(new JdbcTestPlanDao(c).insert(testPlan(p, 1)),
+                    new JdbcTestCaseDao(c).insert(testCase(p, 1)), p.userId());
+        });
+        try (var older = pool.borrow()) {
+            older.setTransactionIsolation(java.sql.Connection.TRANSACTION_REPEATABLE_READ);
+            older.setAutoCommit(false);
+            var dao = new JdbcTestPlanCaseDao(older);
+            assertTrue(dao.listByTestPlan(scope.plan().id()).isEmpty());
+            var link = tx.inTransaction(c -> new JdbcTestPlanCaseDao(c).add(new TestPlanCase(
+                    scope.plan().id(), scope.testCase().id(), scope.userId(), null)));
+            assertTrue(dao.listByTestPlan(scope.plan().id()).isEmpty());
+            new JdbcTestPlanDao(older).findByIdForUpdate(scope.plan().id()).orElseThrow();
+            assertEquals(List.of(link), dao.listByTestPlanForUpdate(scope.plan().id()));
+            older.rollback();
+        }
+    }
 }

@@ -31,6 +31,10 @@ public final class JdbcTestPlanCaseDao implements TestPlanCaseDao {
     @Override public List<TestPlanCase> listByTestPlan(Long testPlanId) {
         return query(SELECT + " JOIN test_cases c ON c.id=pc.test_case_id WHERE pc.test_plan_id=? ORDER BY c.key_no, c.id", testPlanId);
     }
+    @Override public List<TestPlanCase> listByTestPlanForUpdate(Long testPlanId) {
+        requireTransaction();
+        return query(SELECT + " WHERE pc.test_plan_id=? ORDER BY pc.test_case_id FOR UPDATE", testPlanId);
+    }
     @Override public List<TestPlanCase> listByTestCase(Long testCaseId) {
         return query(SELECT + " WHERE pc.test_case_id=? ORDER BY pc.test_plan_id", testCaseId);
     }
@@ -44,6 +48,11 @@ public final class JdbcTestPlanCaseDao implements TestPlanCaseDao {
                 return List.copyOf(rows);
             }
         } catch (SQLException e) { throw new DataAccessException("Find TestPlanCase", e); }
+    }
+    private void requireTransaction() {
+        try {
+            if (connection.getAutoCommit()) throw new SQLException("Plan scope locking requires an outer transaction", "25000");
+        } catch (SQLException e) { throw new DataAccessException("Lock TestPlanCase", e); }
     }
     @Override public boolean remove(Long testPlanId, Long testCaseId) {
         try (PreparedStatement s = connection.prepareStatement("DELETE FROM test_plan_cases WHERE test_plan_id=? AND test_case_id=?")) {

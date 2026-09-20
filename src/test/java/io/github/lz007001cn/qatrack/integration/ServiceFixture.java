@@ -16,7 +16,11 @@ abstract class ServiceFixture extends MysqlFixture {
     protected RequirementService requirements;
     protected TestCaseService testCases;
     protected TraceabilityService traceability;
+    protected TestPlanService testPlans;
+    protected TestRunService testRuns;
+    protected TestExecutionService execution;
     protected final Clock clock = Clock.fixed(Instant.parse("2026-09-16T00:00:00Z"), ZoneOffset.UTC);
+    protected final Clock executionClock = Clock.fixed(Instant.parse("2030-01-01T00:00:00Z"), ZoneOffset.UTC);
 
     @BeforeEach void configureServices() {
         jdbcDaos = new JdbcServiceDaoFactory();
@@ -26,6 +30,9 @@ abstract class ServiceFixture extends MysqlFixture {
         requirements = new DefaultRequirementService(serviceTx, jdbcDaos, access);
         testCases = new DefaultTestCaseService(serviceTx, jdbcDaos, access);
         traceability = new DefaultTraceabilityService(serviceTx, jdbcDaos, access, clock);
+        testPlans = new DefaultTestPlanService(serviceTx, jdbcDaos, access);
+        testRuns = new DefaultTestRunService(serviceTx, jdbcDaos, access, executionClock);
+        execution = new DefaultTestExecutionService(serviceTx, jdbcDaos, access, executionClock);
     }
 
     protected User actor(String username, SystemRole role, UserStatus status) {
@@ -47,6 +54,14 @@ abstract class ServiceFixture extends MysqlFixture {
                 .mapToObj(i -> new TestStepInput(i, "action " + i, "expected " + i)).toList();
         return testCases.create(actor.id(), new CreateTestCaseCommand(project.id(), title, "description",
                 "preconditions", Priority.MEDIUM, steps));
+    }
+
+    protected TestCase readyCase(User actor, Project project, String title, int stepCount) {
+        TestCase draft = createCase(actor, project, title, stepCount);
+        var steps = java.util.stream.IntStream.rangeClosed(1, stepCount)
+                .mapToObj(i -> new TestStepInput(i, "action " + i, "expected " + i)).toList();
+        return testCases.update(actor.id(), new UpdateTestCaseCommand(draft.id(), draft.title(), draft.description(),
+                draft.preconditions(), draft.priority(), TestCaseStatus.READY, draft.lockVersion(), steps));
     }
 
     protected void addMember(Project project, User user, ProjectRole role, MembershipStatus status) {

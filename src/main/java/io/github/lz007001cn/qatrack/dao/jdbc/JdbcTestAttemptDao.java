@@ -32,7 +32,16 @@ public final class JdbcTestAttemptDao implements TestAttemptDao {
     }
 
     @Override public Optional<TestAttempt> findBySubmissionKey(UUID submissionKey) {
-        try (PreparedStatement s = connection.prepareStatement(SELECT + " WHERE submission_key=?")) {
+        return findBySubmissionKey("", submissionKey);
+    }
+
+    @Override public Optional<TestAttempt> findBySubmissionKeyForUpdate(UUID submissionKey) {
+        requireTransaction();
+        return findBySubmissionKey(" FOR UPDATE", submissionKey);
+    }
+
+    private Optional<TestAttempt> findBySubmissionKey(String suffix, UUID submissionKey) {
+        try (PreparedStatement s = connection.prepareStatement(SELECT + " WHERE submission_key=?" + suffix)) {
             s.setBytes(1, uuidBytes(submissionKey));
             try (ResultSet rs = s.executeQuery()) { return rs.next() ? Optional.of(map(rs)) : Optional.empty(); }
         } catch (SQLException e) { throw new DataAccessException("Find TestAttempt by submission key", e); }

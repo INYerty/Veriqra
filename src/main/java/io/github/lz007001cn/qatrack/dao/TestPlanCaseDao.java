@@ -10,6 +10,8 @@ public interface TestPlanCaseDao {
     boolean exists(Long testPlanId, Long testCaseId);
     /** Frozen presentation order: case key_no, with case ID as stable tie breaker. */
     List<TestPlanCase> listByTestPlan(Long testPlanId);
+    /** Current locking read ordered by case ID; caller locks TestCases before Plan, then uses this only to revalidate scope. */
+    List<TestPlanCase> listByTestPlanForUpdate(Long testPlanId);
     List<TestPlanCase> listByTestCase(Long testCaseId);
     /** Physical removal of the association only. */
     boolean remove(Long testPlanId, Long testCaseId);
