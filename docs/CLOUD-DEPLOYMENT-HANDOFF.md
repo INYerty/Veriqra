@@ -1,5 +1,7 @@
 # Cloud Deployment Handoff / 云端部署交接
 
+> 本文保留 Round 3 首次受控部署时的交接快照（包括当时的 WAR checksum 与安全缺口）。后续 Public Deployment Security Gate 的代码、配置和公网验收要求以 [PUBLIC-DEPLOYMENT-SECURITY.md](PUBLIC-DEPLOYMENT-SECURITY.md) 为准；新 WAR 必须重新核对 checksum，写请求现在还要求严格 Origin。
+
 日期：2026-09-21。范围：Phase 4 Round 3 完成后的首次云端部署准备，仍等待 Final Review。本文件为方案，未连接或修改任何服务器，未部署、commit/push 或进入 Round 4。
 
 已核对 pom.xml、实际 WAR、DatabaseConfig、ConnectionPool、ApplicationListener、PasswordVerifier、DefaultAuthService、SessionIdentity、web.xml、DAO SQL、schema.sql/seed.sql 与 Round 3 验证结果。下文区分“代码事实”与“待在服务器确认的部署建议”。
