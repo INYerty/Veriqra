@@ -21,6 +21,10 @@ public final class ApiExceptionFilter implements Filter {
             String code = "INTERNAL_ERROR";
             String message = "An internal error occurred";
             if (failure instanceof HttpFailure f) { status = f.status(); code = f.code(); message = f.getMessage(); }
+            else if (failure instanceof io.github.lz007001cn.qatrack.web.security.LoginRateLimiter.Limited f) {
+                status = 429; code = "TOO_MANY_REQUESTS"; message = "Login temporarily unavailable; retry later";
+                response.setHeader("Retry-After", Long.toString(f.retryAfter()));
+            }
             else if (failure instanceof AuthenticationException) { status = 401; code = "UNAUTHENTICATED"; message = "Authentication required or credentials invalid"; }
             else if (failure instanceof ValidationException) { status = 400; code = "VALIDATION"; message = "Request validation failed"; }
             else if (failure instanceof NotFoundException) { status = 404; code = "NOT_FOUND"; message = "Resource not found"; }

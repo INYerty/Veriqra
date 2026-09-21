@@ -7,7 +7,7 @@ import java.util.*;
 
 /** Reads frozen pbkdf2_sha256$iterations$hex-salt$hex-digest format using JDK cryptography. */
 public final class PasswordVerifier {
-    private static final String DUMMY = "pbkdf2_sha256$210000$1249c9ecae9f9b78f8e25756f4c8bbaf$2ce8ef422b1cb1e5dfea359a18dd4b5b3bf94efa2c0872cdf8a5f5673d5d1694";
+    private static final String DUMMY = "pbkdf2_sha256$600000$1249c9ecae9f9b78f8e25756f4c8bbaf$2ce8ef422b1cb1e5dfea359a18dd4b5b3bf94efa2c0872cdf8a5f5673d5d1694";
 
     public boolean verify(String password, String encoded) {
         if (password == null || password.length() > 1024) return false;

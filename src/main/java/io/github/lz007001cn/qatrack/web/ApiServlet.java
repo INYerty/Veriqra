@@ -8,6 +8,8 @@ import java.io.IOException;
 
 /** Small explicit route table; all business work is delegated to Service interfaces. */
 public final class ApiServlet extends HttpServlet {
+    private final io.github.lz007001cn.qatrack.web.security.LoginRateLimiter loginLimiter =
+            new io.github.lz007001cn.qatrack.web.security.LoginRateLimiter();
     @Override protected void service(HttpServletRequest request, HttpServletResponse response) throws IOException {
         WebServices services = WebServices.from(getServletContext());
         String path = request.getPathInfo() == null ? "" : request.getPathInfo();
@@ -16,9 +18,17 @@ public final class ApiServlet extends HttpServlet {
             case "/auth/login" -> {
                 method(response, method, "POST");
                 LoginRequest body = JsonHttp.read(request, LoginRequest.class);
-                var user = services.auth().authenticate(body.username(), body.password());
-                SessionIdentity.login(request, user.id());
-                JsonHttp.write(response, 200, UserResponse.from(user));
+                try (var permit = loginLimiter.acquire(request.getRemoteAddr(), body.username())) {
+                    try {
+                        var user = services.auth().authenticate(body.username(), body.password());
+                        permit.success();
+                        SessionIdentity.login(request, user.id());
+                        JsonHttp.write(response, 200, UserResponse.from(user));
+                    } catch (io.github.lz007001cn.qatrack.service.exception.AuthenticationException e) {
+                        permit.failure();
+                        throw e;
+                    }
+                }
             }
             case "/auth/logout" -> {
                 method(response, method, "POST");

@@ -75,6 +75,7 @@ class WebFoundationTest {
     }
     HttpResponse<String> call(String method, String path, String body, String contentType, boolean marker) throws Exception {
         var request = HttpRequest.newBuilder(URI.create(server.base() + "/api" + path));
+        request.header("Origin", URI.create(server.base()).resolve("/").toString().replaceAll("/$", ""));
         if (cookie != null) request.header("Cookie", cookie);
         if (contentType != null) request.header("Content-Type", contentType);
         if (marker) request.header("X-QATrack-Request", "1");

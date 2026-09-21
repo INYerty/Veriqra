@@ -88,6 +88,7 @@ class AuthHttpIntegrationTest extends MysqlFixture {
     HttpResponse<String> call(String method, String path, String body) throws Exception {
         var request = HttpRequest.newBuilder(URI.create(base + path)).timeout(Duration.ofSeconds(10))
                 .header("X-QATrack-Request", "1");
+        request.header("Origin", "http://" + URI.create(base).getRawAuthority());
         if (cookie != null) request.header("Cookie", cookie);
         if (body != null) request.header("Content-Type", "application/json");
         return client.send(request.method(method, body == null ? HttpRequest.BodyPublishers.noBody()

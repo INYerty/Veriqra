@@ -74,6 +74,7 @@ class ExecutionWebTest {
     }
     HttpResponse<String> call(String method,String path,String body,boolean marker) throws Exception {
         var b=HttpRequest.newBuilder(URI.create(server.base()+"/api"+path)).timeout(Duration.ofSeconds(15));
+        b.header("Origin", "http://" + URI.create(server.base()).getRawAuthority());
         if(cookie!=null)b.header("Cookie",cookie);
         if(marker)b.header("X-QATrack-Request","1");
         if(body!=null)b.header("Content-Type","application/json");

@@ -76,6 +76,7 @@ class TestAssetHttpIntegrationTest extends MysqlFixture {
     HttpResponse<String> call(String method,String path,String body) throws Exception {
         var request=HttpRequest.newBuilder(URI.create(server.base()+"/api"+path)).timeout(Duration.ofSeconds(15))
                 .header("X-QATrack-Request","1");
+        request.header("Origin", "http://" + URI.create(server.base()).getRawAuthority());
         if(cookie!=null)request.header("Cookie",cookie);
         if(body!=null)request.header("Content-Type","application/json");
         return client.send(request.method(method,body==null?HttpRequest.BodyPublishers.noBody():HttpRequest.BodyPublishers.ofString(body))

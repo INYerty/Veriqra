@@ -16,12 +16,8 @@ public final class ApplicationListener implements ServletContextListener {
     private final List<Driver> ownedDrivers = new ArrayList<>();
     @Override public void contextInitialized(ServletContextEvent event) {
         var context = event.getServletContext();
-        context.getSessionCookieConfig().setAttribute("SameSite", "Lax");
-        String secure = System.getenv("QATRACK_SESSION_SECURE");
-        if (secure != null && !secure.equals("true") && !secure.equals("false")) {
-            throw new IllegalStateException("QATRACK_SESSION_SECURE must be true or false");
-        }
-        context.getSessionCookieConfig().setSecure(Boolean.parseBoolean(secure));
+        io.github.lz007001cn.qatrack.web.security.SessionCookiePolicy.configure(context,
+                System.getenv("QATRACK_SESSION_SECURE"), System.getenv("QATRACK_PUBLIC_ORIGIN"));
         try {
             // Tomcat may initialize DriverManager before WEB-INF/lib is visible to its classloader.
             List<Driver> existing;

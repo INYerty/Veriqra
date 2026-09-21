@@ -11,6 +11,9 @@ import java.util.Set;
 public final class EmbeddedWebServer implements AutoCloseable {
     private final Tomcat tomcat;
     public EmbeddedWebServer(Path directory, WebServices services) throws Exception {
+        this(directory, services, false);
+    }
+    public EmbeddedWebServer(Path directory, WebServices services, boolean secureCookie) throws Exception {
         tomcat = new Tomcat();
         tomcat.setBaseDir(directory.toString());
         tomcat.setPort(0);
@@ -20,8 +23,8 @@ public final class EmbeddedWebServer implements AutoCloseable {
         context.addServletContainerInitializer((classes, servletContext) -> {
             servletContext.setAttribute(WebServices.ATTRIBUTE, services);
             servletContext.setSessionTrackingModes(Set.of(SessionTrackingMode.COOKIE));
-            servletContext.getSessionCookieConfig().setHttpOnly(true);
-            servletContext.getSessionCookieConfig().setAttribute("SameSite", "Lax");
+            io.github.lz007001cn.qatrack.web.security.SessionCookiePolicy.configure(
+                    servletContext, Boolean.toString(secureCookie), null);
         }, Set.of());
         Tomcat.addServlet(context, "api", new ApiServlet());
         context.addServletMappingDecoded("/api/*", "api");
