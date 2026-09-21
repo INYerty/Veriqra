@@ -57,7 +57,10 @@ class WebFoundationTest {
                     RequirementStatus.DRAFT, actualActor, TIME, TIME, 0);
             return method.getName().equals("listByProject") ? List.of(requirement) : requirement;
         });
-        server = new EmbeddedWebServer(directory, new WebServices(auth, projects, requirements));
+        server = new EmbeddedWebServer(directory, new WebServices(auth, projects, requirements,
+                proxy(TestCaseService.class, (o, m, a) -> { throw new AssertionError("Unexpected test-case call"); }),
+                proxy(TraceabilityService.class, (o, m, a) -> { throw new AssertionError("Unexpected traceability call"); }),
+                proxy(TestPlanService.class, (o, m, a) -> { throw new AssertionError("Unexpected plan call"); })));
         client = HttpClient.newHttpClient();
     }
     @AfterAll void stop() throws Exception { if (server != null) server.close(); }

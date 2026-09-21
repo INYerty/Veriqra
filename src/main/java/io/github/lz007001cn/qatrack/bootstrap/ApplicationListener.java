@@ -42,7 +42,10 @@ public final class ApplicationListener implements ServletContextListener {
             context.setAttribute(WebServices.ATTRIBUTE, new WebServices(
                     new DefaultAuthService(transactions, daos, new PasswordVerifier()),
                     new DefaultProjectService(transactions, daos, access),
-                    new DefaultRequirementService(transactions, daos, access)));
+                    new DefaultRequirementService(transactions, daos, access),
+                    new DefaultTestCaseService(transactions, daos, access),
+                    new DefaultTraceabilityService(transactions, daos, access, java.time.Clock.systemUTC()),
+                    new DefaultTestPlanService(transactions, daos, access)));
         } catch (SQLException | ClassNotFoundException | RuntimeException e) {
             closePool(context);
             // Configuration/driver exceptions may contain credentials; do not attach them to container logs.

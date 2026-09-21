@@ -21,6 +21,7 @@ public final class JsonMapperProvider {
                 .addModule(new JavaTimeModule())
                 .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)
                 .disable(MapperFeature.ALLOW_COERCION_OF_SCALARS)
+                .disable(DeserializationFeature.ACCEPT_FLOAT_AS_INT)
                 .enable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
                 .enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS)
                 .enable(DeserializationFeature.FAIL_ON_NUMBERS_FOR_ENUMS)

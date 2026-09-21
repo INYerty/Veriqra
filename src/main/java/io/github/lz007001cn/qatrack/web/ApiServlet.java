@@ -2,6 +2,7 @@ package io.github.lz007001cn.qatrack.web;
 
 import io.github.lz007001cn.qatrack.service.command.*;
 import io.github.lz007001cn.qatrack.web.dto.*;
+import io.github.lz007001cn.qatrack.web.handler.*;
 import jakarta.servlet.http.*;
 import java.io.IOException;
 
@@ -48,7 +49,7 @@ public final class ApiServlet extends HttpServlet {
     private void projectRoute(HttpServletRequest request, HttpServletResponse response, WebServices services,
                               String path, String method) throws IOException {
         String[] parts = path.split("/", -1);
-        if ((parts.length == 3 || parts.length == 4) && parts[1].equals("projects")) {
+        if (parts.length >= 3 && parts[1].equals("projects")) {
             long projectId = JsonHttp.positiveId(parts[2]);
             Long actor = SessionIdentity.require(request);
             if (parts.length == 3) {
@@ -56,26 +57,18 @@ public final class ApiServlet extends HttpServlet {
                 JsonHttp.write(response, 200, ProjectResponse.from(services.projects().get(actor, projectId)));
                 return;
             }
-            if (parts[3].equals("requirements")) {
-                if (method.equals("GET")) {
-                    JsonHttp.write(response, 200, services.requirements().listByProject(actor, projectId)
-                            .stream().map(RequirementResponse::from).toList());
-                } else {
-                    method(response, method, "GET", "POST");
-                    CreateRequirementRequest body = JsonHttp.read(request, CreateRequirementRequest.class);
-                    var requirement = services.requirements().create(actor,
-                            new CreateRequirementCommand(projectId, body.title(), body.description(), body.priority()));
-                    JsonHttp.write(response, 201, RequirementResponse.from(requirement));
-                }
-                return;
+            switch (parts[3]) {
+                case "requirements" -> RequirementHandler.handle(request, response, services, actor, projectId, parts);
+                case "test-cases" -> TestCaseHandler.handle(request, response, services, actor, projectId, parts);
+                case "test-plans" -> TestPlanHandler.handle(request, response, services, actor, projectId, parts);
+                default -> throw new HttpFailure(404, "NOT_FOUND", "Resource not found");
             }
+            return;
         }
         throw new HttpFailure(404, "NOT_FOUND", "Resource not found");
     }
 
     private static void method(HttpServletResponse response, String actual, String... allowed) {
-        for (String candidate : allowed) if (candidate.equals(actual)) return;
-        response.setHeader("Allow", String.join(", ", allowed));
-        throw new HttpFailure(405, "METHOD_NOT_ALLOWED", "HTTP method not allowed");
+        JsonHttp.method(response, actual, allowed);
     }
 }

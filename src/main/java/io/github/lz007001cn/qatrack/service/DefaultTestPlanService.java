@@ -61,6 +61,10 @@ public final class DefaultTestPlanService implements TestPlanService {
     }
 
     @Override public TestPlan update(Long actorUserId, UpdateTestPlanCommand command) {
+        return update(actorUserId, null, command);
+    }
+
+    @Override public TestPlan update(Long actorUserId, Long projectId, UpdateTestPlanCommand command) {
         ServiceValidation.required(command, "command");
         ServiceValidation.required(command.testPlanId(), "testPlanId");
         ServiceValidation.required(command.lockVersion(), "lockVersion");
@@ -74,6 +78,7 @@ public final class DefaultTestPlanService implements TestPlanService {
             TestPlan preliminary = daos.testPlans().findById(command.testPlanId())
                     .orElseThrow(() -> new NotFoundException("Test plan does not exist"));
             Project project = writableProject(daos, actorUserId, preliminary.projectId());
+            ProjectOwnership.require(preliminary.projectId(), projectId);
             List<Long> expectedCaseIds = requestedStatus == TestPlanStatus.READY
                     ? planCaseIds(daos, preliminary.id()) : List.of();
             List<TestCase> cases = requestedStatus == TestPlanStatus.READY
@@ -100,6 +105,10 @@ public final class DefaultTestPlanService implements TestPlanService {
     }
 
     @Override public TestPlan archive(Long actorUserId, Long testPlanId, Integer lockVersion) {
+        return archive(actorUserId, null, testPlanId, lockVersion);
+    }
+
+    @Override public TestPlan archive(Long actorUserId, Long projectId, Long testPlanId, Integer lockVersion) {
         ServiceValidation.required(testPlanId, "testPlanId");
         ServiceValidation.required(lockVersion, "lockVersion");
         return transactions.execute(connection -> {
@@ -107,6 +116,7 @@ public final class DefaultTestPlanService implements TestPlanService {
             TestPlan preliminary = daos.testPlans().findById(testPlanId)
                     .orElseThrow(() -> new NotFoundException("Test plan does not exist"));
             Project project = writableProject(daos, actorUserId, preliminary.projectId());
+            ProjectOwnership.require(preliminary.projectId(), projectId);
             TestPlan current = daos.testPlans().findByIdForUpdate(testPlanId)
                     .orElseThrow(() -> new NotFoundException("Test plan does not exist"));
             ensureSameProject(current.projectId(), project.id(), "Test plan");
@@ -122,7 +132,11 @@ public final class DefaultTestPlanService implements TestPlanService {
     }
 
     @Override public TestPlanCase addCase(Long actorUserId, Long testPlanId, Long testCaseId,
-                                          Integer planLockVersion) {
+                                         Integer planLockVersion) {
+        return addCase(actorUserId, null, testPlanId, testCaseId, planLockVersion);
+    }
+
+    @Override public TestPlanCase addCase(Long actorUserId, Long projectId, Long testPlanId, Long testCaseId, Integer planLockVersion) {
         ServiceValidation.required(testPlanId, "testPlanId");
         ServiceValidation.required(testCaseId, "testCaseId");
         ServiceValidation.required(planLockVersion, "planLockVersion");
@@ -131,6 +145,7 @@ public final class DefaultTestPlanService implements TestPlanService {
             TestPlan preliminary = daos.testPlans().findById(testPlanId)
                     .orElseThrow(() -> new NotFoundException("Test plan does not exist"));
             Project project = writableProject(daos, actorUserId, preliminary.projectId());
+            ProjectOwnership.require(preliminary.projectId(), projectId);
             TestCase testCase = lockCases(daos, project.id(), List.of(testCaseId), false).getFirst();
             TestPlan current = lockMutablePlan(daos, preliminary.id(), project.id());
             if (lockedPlanCaseIds(daos, current.id()).contains(testCase.id())) {
@@ -142,7 +157,11 @@ public final class DefaultTestPlanService implements TestPlanService {
     }
 
     @Override public void removeCase(Long actorUserId, Long testPlanId, Long testCaseId,
-                                     Integer planLockVersion) {
+                                    Integer planLockVersion) {
+        removeCase(actorUserId, null, testPlanId, testCaseId, planLockVersion);
+    }
+
+    @Override public void removeCase(Long actorUserId, Long projectId, Long testPlanId, Long testCaseId, Integer planLockVersion) {
         ServiceValidation.required(testPlanId, "testPlanId");
         ServiceValidation.required(testCaseId, "testCaseId");
         ServiceValidation.required(planLockVersion, "planLockVersion");
@@ -151,6 +170,7 @@ public final class DefaultTestPlanService implements TestPlanService {
             TestPlan preliminary = daos.testPlans().findById(testPlanId)
                     .orElseThrow(() -> new NotFoundException("Test plan does not exist"));
             Project project = writableProject(daos, actorUserId, preliminary.projectId());
+            ProjectOwnership.require(preliminary.projectId(), projectId);
             TestCase testCase = daos.testCases().findByIdForUpdate(testCaseId)
                     .orElseThrow(() -> new NotFoundException("Test case does not exist"));
             ensureSameProject(testCase.projectId(), project.id(), "Test case");
@@ -163,6 +183,29 @@ public final class DefaultTestPlanService implements TestPlanService {
                 throw new ConflictException("Test plan scope changed during removal");
             }
             return null;
+        });
+    }
+
+    @Override public List<TestPlan> listByProject(Long actorUserId, Long projectId) {
+        ServiceValidation.required(projectId, "projectId");
+        return transactions.execute(connection -> {
+            ServiceDaos daos = daoFactory.create(connection);
+            daos.projects().findById(projectId).orElseThrow(() -> new NotFoundException("Project does not exist"));
+            access.requireProjectRead(daos.users(), daos.members(), actorUserId, projectId);
+            return daos.testPlans().listByProject(projectId);
+        });
+    }
+
+    @Override public TestPlanDetails getDetails(Long actorUserId, Long projectId, Long testPlanId) {
+        ServiceValidation.required(projectId, "projectId");
+        ServiceValidation.required(testPlanId, "testPlanId");
+        return transactions.execute(connection -> {
+            ServiceDaos daos = daoFactory.create(connection);
+            TestPlan plan = daos.testPlans().findById(testPlanId)
+                    .orElseThrow(() -> new NotFoundException("Test plan does not exist"));
+            access.requireProjectRead(daos.users(), daos.members(), actorUserId, plan.projectId());
+            ProjectOwnership.require(plan.projectId(), projectId);
+            return new TestPlanDetails(plan, daos.testPlanCases().listByTestPlan(plan.id()));
         });
     }
 

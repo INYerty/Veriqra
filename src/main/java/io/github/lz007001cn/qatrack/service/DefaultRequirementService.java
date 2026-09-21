@@ -34,12 +34,17 @@ public final class DefaultRequirementService implements RequirementService {
     }
 
     @Override public Requirement get(Long actorUserId, Long requirementId) {
+        return get(actorUserId, null, requirementId);
+    }
+
+    @Override public Requirement get(Long actorUserId, Long projectId, Long requirementId) {
         ServiceValidation.required(requirementId, "requirementId");
         return transactions.execute(connection -> {
             ServiceDaos daos = daoFactory.create(connection);
             Requirement value = daos.requirements().findById(requirementId)
                     .orElseThrow(() -> new NotFoundException("Requirement does not exist"));
             access.requireProjectRead(daos.users(), daos.members(), actorUserId, value.projectId());
+            ProjectOwnership.require(value.projectId(), projectId);
             return value;
         });
     }
@@ -55,6 +60,10 @@ public final class DefaultRequirementService implements RequirementService {
     }
 
     @Override public Requirement update(Long actorUserId, UpdateRequirementCommand command) {
+        return update(actorUserId, null, command);
+    }
+
+    @Override public Requirement update(Long actorUserId, Long projectId, UpdateRequirementCommand command) {
         ServiceValidation.required(command, "command");
         ServiceValidation.required(command.requirementId(), "requirementId");
         ServiceValidation.required(command.lockVersion(), "lockVersion");
@@ -66,6 +75,7 @@ public final class DefaultRequirementService implements RequirementService {
             Requirement preliminary = daos.requirements().findById(command.requirementId())
                     .orElseThrow(() -> new NotFoundException("Requirement does not exist"));
             writableProject(daos, actorUserId, preliminary.projectId());
+            ProjectOwnership.require(preliminary.projectId(), projectId);
             Requirement current = daos.requirements().findByIdForUpdate(command.requirementId())
                     .orElseThrow(() -> new NotFoundException("Requirement does not exist"));
             if (!Objects.equals(current.projectId(), preliminary.projectId())) {

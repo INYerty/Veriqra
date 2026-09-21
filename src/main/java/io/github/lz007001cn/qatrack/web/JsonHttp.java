@@ -38,6 +38,12 @@ public final class JsonHttp {
         response.getOutputStream().write(bytes);
     }
 
+    public static void method(HttpServletResponse response, String actual, String... allowed) {
+        for (String candidate : allowed) if (candidate.equals(actual)) return;
+        response.setHeader("Allow", String.join(", ", allowed));
+        throw new HttpFailure(405, "METHOD_NOT_ALLOWED", "HTTP method not allowed");
+    }
+
     public static long positiveId(String text) {
         try {
             if (!text.matches("[1-9][0-9]*")) throw new NumberFormatException();

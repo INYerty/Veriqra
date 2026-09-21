@@ -38,12 +38,17 @@ public final class DefaultTestCaseService implements TestCaseService {
     }
 
     @Override public TestCase get(Long actorUserId, Long testCaseId) {
+        return get(actorUserId, null, testCaseId);
+    }
+
+    @Override public TestCase get(Long actorUserId, Long projectId, Long testCaseId) {
         ServiceValidation.required(testCaseId, "testCaseId");
         return transactions.execute(connection -> {
             ServiceDaos daos = daoFactory.create(connection);
             TestCase value = daos.testCases().findById(testCaseId)
                     .orElseThrow(() -> new NotFoundException("Test case does not exist"));
             access.requireProjectRead(daos.users(), daos.members(), actorUserId, value.projectId());
+            ProjectOwnership.require(value.projectId(), projectId);
             return value;
         });
     }
@@ -70,6 +75,10 @@ public final class DefaultTestCaseService implements TestCaseService {
     }
 
     @Override public TestCase update(Long actorUserId, UpdateTestCaseCommand command) {
+        return update(actorUserId, null, command);
+    }
+
+    @Override public TestCase update(Long actorUserId, Long projectId, UpdateTestCaseCommand command) {
         ServiceValidation.required(command, "command");
         ServiceValidation.required(command.testCaseId(), "testCaseId");
         ServiceValidation.required(command.lockVersion(), "lockVersion");
@@ -85,6 +94,7 @@ public final class DefaultTestCaseService implements TestCaseService {
             TestCase preliminary = daos.testCases().findById(command.testCaseId())
                     .orElseThrow(() -> new NotFoundException("Test case does not exist"));
             writableProject(daos, actorUserId, preliminary.projectId());
+            ProjectOwnership.require(preliminary.projectId(), projectId);
             TestCase current = daos.testCases().findByIdForUpdate(command.testCaseId())
                     .orElseThrow(() -> new NotFoundException("Test case does not exist"));
             if (!Objects.equals(current.projectId(), preliminary.projectId())) {
@@ -110,6 +120,19 @@ public final class DefaultTestCaseService implements TestCaseService {
             }
             if (semanticChange) daos.traceability().markConfirmedNeedsReviewByTestCase(current.id());
             return updated;
+        });
+    }
+
+    @Override public TestCaseDetails getDetails(Long actorUserId, Long projectId, Long testCaseId) {
+        ServiceValidation.required(projectId, "projectId");
+        ServiceValidation.required(testCaseId, "testCaseId");
+        return transactions.execute(connection -> {
+            ServiceDaos daos = daoFactory.create(connection);
+            TestCase value = daos.testCases().findById(testCaseId)
+                    .orElseThrow(() -> new NotFoundException("Test case does not exist"));
+            access.requireProjectRead(daos.users(), daos.members(), actorUserId, value.projectId());
+            ProjectOwnership.require(value.projectId(), projectId);
+            return new TestCaseDetails(value, daos.steps().listByTestCase(value.id()));
         });
     }
 

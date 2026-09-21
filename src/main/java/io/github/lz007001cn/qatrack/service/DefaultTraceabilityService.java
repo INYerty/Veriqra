@@ -21,9 +21,13 @@ public final class DefaultTraceabilityService implements TraceabilityService {
     }
 
     @Override public TestCaseRequirement attach(Long actorUserId, Long requirementId, Long testCaseId) {
+        return attach(actorUserId, null, requirementId, testCaseId);
+    }
+
+    @Override public TestCaseRequirement attach(Long actorUserId, Long projectId, Long requirementId, Long testCaseId) {
         return transactions.execute(connection -> {
             ServiceDaos daos = daoFactory.create(connection);
-            lockWritableEndpoints(daos, actorUserId, requirementId, testCaseId);
+            lockWritableEndpoints(daos, actorUserId, projectId, requirementId, testCaseId);
             var existing = daos.traceability().find(requirementId, testCaseId);
             if (existing.isEmpty()) {
                 return daos.traceability().add(new TestCaseRequirement(requirementId, testCaseId,
@@ -41,9 +45,13 @@ public final class DefaultTraceabilityService implements TraceabilityService {
     }
 
     @Override public TestCaseRequirement remove(Long actorUserId, Long requirementId, Long testCaseId) {
+        return remove(actorUserId, null, requirementId, testCaseId);
+    }
+
+    @Override public TestCaseRequirement remove(Long actorUserId, Long projectId, Long requirementId, Long testCaseId) {
         return transactions.execute(connection -> {
             ServiceDaos daos = daoFactory.create(connection);
-            lockWritableEndpoints(daos, actorUserId, requirementId, testCaseId);
+            lockWritableEndpoints(daos, actorUserId, projectId, requirementId, testCaseId);
             TestCaseRequirement existing = daos.traceability().find(requirementId, testCaseId)
                     .orElseThrow(() -> new NotFoundException("Traceability link does not exist"));
             if (existing.status() == TraceabilityStatus.REMOVED) return existing;
@@ -55,9 +63,13 @@ public final class DefaultTraceabilityService implements TraceabilityService {
     }
 
     @Override public TestCaseRequirement confirm(Long actorUserId, Long requirementId, Long testCaseId) {
+        return confirm(actorUserId, null, requirementId, testCaseId);
+    }
+
+    @Override public TestCaseRequirement confirm(Long actorUserId, Long projectId, Long requirementId, Long testCaseId) {
         return transactions.execute(connection -> {
             ServiceDaos daos = daoFactory.create(connection);
-            lockWritableEndpoints(daos, actorUserId, requirementId, testCaseId);
+            lockWritableEndpoints(daos, actorUserId, projectId, requirementId, testCaseId);
             TestCaseRequirement existing = daos.traceability().find(requirementId, testCaseId)
                     .orElseThrow(() -> new NotFoundException("Traceability link does not exist"));
             if (existing.status() != TraceabilityStatus.NEEDS_REVIEW) {
@@ -97,7 +109,25 @@ public final class DefaultTraceabilityService implements TraceabilityService {
         });
     }
 
-    private LockedEndpoints lockWritableEndpoints(ServiceDaos daos, Long actorUserId,
+    @Override public java.util.List<TraceabilityDetails> listByRequirement(Long actorUserId, Long projectId, Long requirementId) {
+        ServiceValidation.required(projectId, "projectId");
+        ServiceValidation.required(requirementId, "requirementId");
+        return transactions.execute(connection -> {
+            ServiceDaos daos = daoFactory.create(connection);
+            Requirement requirement = daos.requirements().findById(requirementId)
+                    .orElseThrow(() -> new NotFoundException("Requirement does not exist"));
+            access.requireProjectRead(daos.users(), daos.members(), actorUserId, requirement.projectId());
+            ProjectOwnership.require(requirement.projectId(), projectId);
+            return daos.traceability().listByRequirement(requirementId).stream().map(link -> {
+                TestCase testCase = daos.testCases().findById(link.testCaseId())
+                        .orElseThrow(() -> new NotFoundException("Test case does not exist"));
+                ProjectOwnership.require(testCase.projectId(), projectId);
+                return new TraceabilityDetails(testCase, link);
+            }).toList();
+        });
+    }
+
+    private LockedEndpoints lockWritableEndpoints(ServiceDaos daos, Long actorUserId, Long projectId,
                                                     Long requirementId, Long testCaseId) {
         ServiceValidation.required(requirementId, "requirementId");
         ServiceValidation.required(testCaseId, "testCaseId");
@@ -111,6 +141,7 @@ public final class DefaultTraceabilityService implements TraceabilityService {
         Project project = daos.projects().findByIdForShare(preliminaryRequirement.projectId())
                 .orElseThrow(() -> new NotFoundException("Project does not exist"));
         access.requireAssetWrite(daos.users(), daos.members(), actorUserId, project.id());
+        ProjectOwnership.require(project.id(), projectId);
         if (project.status() != ProjectStatus.ACTIVE) throw new ConflictException("Archived project is read-only");
         Requirement requirement = daos.requirements().findByIdForUpdate(requirementId)
                 .orElseThrow(() -> new NotFoundException("Requirement does not exist"));
