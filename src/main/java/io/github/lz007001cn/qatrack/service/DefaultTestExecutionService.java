@@ -23,33 +23,38 @@ public final class DefaultTestExecutionService implements TestExecutionService {
     }
 
     @Override public TestAttempt recordAttempt(Long actorUserId, RecordAttemptCommand command) {
+        return recordAttempt(actorUserId, null, null, command);
+    }
+
+    @Override public TestAttempt recordAttempt(Long actorUserId, Long projectId, Long testRunId, RecordAttemptCommand command) {
         validate(command);
         try {
-            return appendOnce(actorUserId, command);
+            return appendOnce(actorUserId, projectId, testRunId, command);
         } catch (DataAccessException failure) {
             if (failure.getVendorCode() == 1062) {
-                return recoverConcurrentSubmission(actorUserId, command, failure);
+                return recoverConcurrentSubmission(actorUserId, projectId, testRunId, command, failure);
             }
             if (failure.getVendorCode() != 1213) throw failure;
             try {
-                return appendOnce(actorUserId, command);
+                return appendOnce(actorUserId, projectId, testRunId, command);
             } catch (DataAccessException retryFailure) {
                 retryFailure.addSuppressed(failure);
                 if (retryFailure.getVendorCode() == 1062) {
-                    return recoverConcurrentSubmission(actorUserId, command, retryFailure);
+                    return recoverConcurrentSubmission(actorUserId, projectId, testRunId, command, retryFailure);
                 }
                 throw retryFailure;
             }
         }
     }
 
-    private TestAttempt appendOnce(Long actorUserId, RecordAttemptCommand command) {
+    private TestAttempt appendOnce(Long actorUserId, Long projectId, Long testRunId, RecordAttemptCommand command) {
         return transactions.execute(connection -> {
             ServiceDaos daos = daoFactory.create(connection);
             TestRunCase preliminaryRunCase = daos.runCases().findById(command.runCaseId())
                     .orElseThrow(() -> new NotFoundException("Test run case does not exist"));
             TestRun preliminaryRun = daos.testRuns().findById(preliminaryRunCase.testRunId())
                     .orElseThrow(() -> new NotFoundException("Test run does not exist"));
+            requireScope(preliminaryRun, projectId, testRunId);
             Project project = writableProject(daos, actorUserId, preliminaryRun.projectId());
             TestRun run = daos.testRuns().findByIdForUpdate(preliminaryRun.id())
                     .orElseThrow(() -> new NotFoundException("Test run does not exist"));
@@ -74,7 +79,7 @@ public final class DefaultTestExecutionService implements TestExecutionService {
         });
     }
 
-    private TestAttempt recoverConcurrentSubmission(Long actorUserId, RecordAttemptCommand command,
+    private TestAttempt recoverConcurrentSubmission(Long actorUserId, Long projectId, Long testRunId, RecordAttemptCommand command,
                                                      DataAccessException originalFailure) {
         return transactions.execute(connection -> {
             ServiceDaos daos = daoFactory.create(connection);
@@ -82,6 +87,7 @@ public final class DefaultTestExecutionService implements TestExecutionService {
                     .orElseThrow(() -> new NotFoundException("Test run case does not exist"));
             TestRun run = daos.testRuns().findById(runCase.testRunId())
                     .orElseThrow(() -> new NotFoundException("Test run does not exist"));
+            requireScope(run, projectId, testRunId);
             writableProject(daos, actorUserId, run.projectId());
             TestAttempt existing = daos.attempts().findBySubmissionKey(command.submissionKey())
                     .orElseThrow(() -> originalFailure);
@@ -90,6 +96,10 @@ public final class DefaultTestExecutionService implements TestExecutionService {
     }
 
     @Override public List<TestAttempt> listAttempts(Long actorUserId, Long runCaseId) {
+        return listAttempts(actorUserId, null, null, runCaseId);
+    }
+
+    @Override public List<TestAttempt> listAttempts(Long actorUserId, Long projectId, Long testRunId, Long runCaseId) {
         ServiceValidation.required(runCaseId, "runCaseId");
         return transactions.execute(connection -> {
             ServiceDaos daos = daoFactory.create(connection);
@@ -97,6 +107,7 @@ public final class DefaultTestExecutionService implements TestExecutionService {
                     .orElseThrow(() -> new NotFoundException("Test run case does not exist"));
             TestRun run = daos.testRuns().findById(runCase.testRunId())
                     .orElseThrow(() -> new NotFoundException("Test run does not exist"));
+            requireScope(run, projectId, testRunId);
             access.requireProjectRead(daos.users(), daos.members(), actorUserId, run.projectId());
             return daos.attempts().listByRunCase(runCase.id());
         });
@@ -113,6 +124,13 @@ public final class DefaultTestExecutionService implements TestExecutionService {
             access.requireProjectRead(daos.users(), daos.members(), actorUserId, run.projectId());
             return daos.attempts().findLatestByRunCase(runCase.id()).map(TestAttempt::status);
         });
+    }
+
+    private static void requireScope(TestRun run, Long projectId, Long testRunId) {
+        ProjectOwnership.require(run.projectId(), projectId);
+        if (testRunId != null && !Objects.equals(run.id(), testRunId)) {
+            throw new ValidationException("Test run case belongs to another run");
+        }
     }
 
     private Project writableProject(ServiceDaos daos, Long actorUserId, Long projectId) {

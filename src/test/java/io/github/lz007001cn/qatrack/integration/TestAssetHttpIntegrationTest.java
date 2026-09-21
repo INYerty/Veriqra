@@ -42,7 +42,10 @@ class TestAssetHttpIntegrationTest extends MysqlFixture {
                 new DefaultRequirementService(transactions, daos, access),
                 new DefaultTestCaseService(transactions, daos, access),
                 new DefaultTraceabilityService(transactions, daos, access, Clock.systemUTC()),
-                new DefaultTestPlanService(transactions, daos, access)));
+                new DefaultTestPlanService(transactions, daos, access),
+                new DefaultTestRunService(transactions, daos, access, Clock.systemUTC()),
+                new DefaultTestExecutionService(transactions, daos, access, Clock.systemUTC()),
+                new DefaultDefectService(transactions, daos, access)));
         client = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
         byte[] salt = new byte[16]; new java.security.SecureRandom().nextBytes(salt);
         PBEKeySpec spec = new PBEKeySpec("asset-test-password".toCharArray(),salt,600000,256);

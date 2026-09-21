@@ -60,7 +60,10 @@ class WebFoundationTest {
         server = new EmbeddedWebServer(directory, new WebServices(auth, projects, requirements,
                 proxy(TestCaseService.class, (o, m, a) -> { throw new AssertionError("Unexpected test-case call"); }),
                 proxy(TraceabilityService.class, (o, m, a) -> { throw new AssertionError("Unexpected traceability call"); }),
-                proxy(TestPlanService.class, (o, m, a) -> { throw new AssertionError("Unexpected plan call"); })));
+                proxy(TestPlanService.class, (o, m, a) -> { throw new AssertionError("Unexpected plan call"); }),
+                WebFoundationTest.proxy(TestRunService.class, (o,m,a) -> { throw new AssertionError("Unexpected Round 3 call"); }),
+                WebFoundationTest.proxy(TestExecutionService.class, (o,m,a) -> { throw new AssertionError("Unexpected Round 3 call"); }),
+                WebFoundationTest.proxy(DefectService.class, (o,m,a) -> { throw new AssertionError("Unexpected Round 3 call"); })));
         client = HttpClient.newHttpClient();
     }
     @AfterAll void stop() throws Exception { if (server != null) server.close(); }

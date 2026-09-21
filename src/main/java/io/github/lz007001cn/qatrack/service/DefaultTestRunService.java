@@ -5,6 +5,7 @@ import io.github.lz007001cn.qatrack.model.*;
 import io.github.lz007001cn.qatrack.service.command.*;
 import io.github.lz007001cn.qatrack.service.exception.*;
 import io.github.lz007001cn.qatrack.service.support.*;
+import io.github.lz007001cn.qatrack.service.query.RunDetails;
 import java.time.*;
 import java.util.*;
 
@@ -62,6 +63,31 @@ public final class DefaultTestRunService implements TestRunService {
         });
     }
 
+    @Override public List<TestRun> listByProject(Long actorUserId, Long projectId) {
+        ServiceValidation.required(projectId, "projectId");
+        return transactions.execute(connection -> {
+            ServiceDaos daos = daoFactory.create(connection);
+            daos.projects().findById(projectId).orElseThrow(() -> new NotFoundException("Project does not exist"));
+            access.requireProjectRead(daos.users(), daos.members(), actorUserId, projectId);
+            return daos.testRuns().listByProject(projectId);
+        });
+    }
+
+    @Override public RunDetails getDetails(Long actorUserId, Long projectId, Long testRunId) {
+        ServiceValidation.required(projectId, "projectId");
+        ServiceValidation.required(testRunId, "testRunId");
+        return transactions.execute(connection -> {
+            ServiceDaos daos = daoFactory.create(connection);
+            TestRun run = daos.testRuns().findById(testRunId)
+                    .orElseThrow(() -> new NotFoundException("Test run does not exist"));
+            ProjectOwnership.require(run.projectId(), projectId);
+            access.requireProjectRead(daos.users(), daos.members(), actorUserId, projectId);
+            return new RunDetails(run, daos.runCases().listByRun(run.id()).stream()
+                    .map(item -> new RunDetails.CaseDetails(item, daos.runCaseSteps().listByRunCase(item.id()),
+                            daos.attempts().findLatestByRunCase(item.id()))).toList());
+        });
+    }
+
     @Override public TestRun get(Long actorUserId, Long testRunId) {
         ServiceValidation.required(testRunId, "testRunId");
         return transactions.execute(connection -> {
@@ -98,20 +124,29 @@ public final class DefaultTestRunService implements TestRunService {
     }
 
     @Override public TestRun complete(Long actorUserId, Long testRunId, Integer lockVersion) {
-        return finish(actorUserId, testRunId, lockVersion, TestRunStatus.COMPLETED);
+        return complete(actorUserId, null, testRunId, lockVersion);
     }
 
     @Override public TestRun cancel(Long actorUserId, Long testRunId, Integer lockVersion) {
-        return finish(actorUserId, testRunId, lockVersion, TestRunStatus.CANCELLED);
+        return cancel(actorUserId, null, testRunId, lockVersion);
     }
 
-    private TestRun finish(Long actorUserId, Long testRunId, Integer lockVersion, TestRunStatus terminalStatus) {
+    @Override public TestRun complete(Long actorUserId, Long projectId, Long testRunId, Integer lockVersion) {
+        return finish(actorUserId, projectId, testRunId, lockVersion, TestRunStatus.COMPLETED);
+    }
+
+    @Override public TestRun cancel(Long actorUserId, Long projectId, Long testRunId, Integer lockVersion) {
+        return finish(actorUserId, projectId, testRunId, lockVersion, TestRunStatus.CANCELLED);
+    }
+
+    private TestRun finish(Long actorUserId, Long projectId, Long testRunId, Integer lockVersion, TestRunStatus terminalStatus) {
         ServiceValidation.required(testRunId, "testRunId");
         ServiceValidation.required(lockVersion, "lockVersion");
         return transactions.execute(connection -> {
             ServiceDaos daos = daoFactory.create(connection);
             TestRun preliminary = daos.testRuns().findById(testRunId)
                     .orElseThrow(() -> new NotFoundException("Test run does not exist"));
+            ProjectOwnership.require(preliminary.projectId(), projectId);
             Project project = writableProject(daos, actorUserId, preliminary.projectId());
             TestRun run = daos.testRuns().findByIdForUpdate(testRunId)
                     .orElseThrow(() -> new NotFoundException("Test run does not exist"));

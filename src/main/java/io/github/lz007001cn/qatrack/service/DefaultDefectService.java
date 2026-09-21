@@ -5,6 +5,7 @@ import io.github.lz007001cn.qatrack.model.*;
 import io.github.lz007001cn.qatrack.service.command.*;
 import io.github.lz007001cn.qatrack.service.exception.*;
 import io.github.lz007001cn.qatrack.service.support.*;
+import io.github.lz007001cn.qatrack.service.query.DefectDetails;
 import java.util.*;
 
 public final class DefaultDefectService implements DefectService {
@@ -47,6 +48,23 @@ public final class DefaultDefectService implements DefectService {
         });
     }
 
+    @Override public DefectDetails getDetails(Long actorUserId, Long projectId, Long defectId) {
+        ServiceValidation.required(projectId, "projectId");
+        ServiceValidation.required(defectId, "defectId");
+        return transactions.execute(connection -> {
+            ServiceDaos daos = daoFactory.create(connection);
+            Defect defect = findDefect(daos, defectId);
+            ProjectOwnership.require(defect.projectId(), projectId);
+            access.requireProjectRead(daos.users(), daos.members(), actorUserId, projectId);
+            return new DefectDetails(defect, daos.attemptDefects().listAttemptsByDefect(defectId).stream()
+                    .map(link -> {
+                        AttemptContext context = loadAttemptContext(daos, link.attemptId());
+                        ensureSameProject(context.run().projectId(), projectId, "Evidence attempt");
+                        return new DefectDetails.Evidence(link, context.attempt(), context.run().id());
+                    }).toList());
+        });
+    }
+
     @Override public Defect get(Long actorUserId, Long defectId) {
         ServiceValidation.required(defectId, "defectId");
         return transactions.execute(connection -> {
@@ -69,6 +87,10 @@ public final class DefaultDefectService implements DefectService {
     }
 
     @Override public Defect update(Long actorUserId, UpdateDefectCommand command) {
+        return update(actorUserId, null, command);
+    }
+
+    @Override public Defect update(Long actorUserId, Long projectId, UpdateDefectCommand command) {
         ServiceValidation.required(command, "command");
         ServiceValidation.required(command.defectId(), "defectId");
         ServiceValidation.required(command.lockVersion(), "lockVersion");
@@ -78,6 +100,7 @@ public final class DefaultDefectService implements DefectService {
         return transactions.execute(connection -> {
             ServiceDaos daos = daoFactory.create(connection);
             Defect preliminary = findDefect(daos, command.defectId());
+            ProjectOwnership.require(preliminary.projectId(), projectId);
             Project project = writableProject(daos, preliminary.projectId());
             lockParticipants(daos, project.id(), actorUserId, command.assigneeId());
             access.requireAssetWrite(daos.users(), daos.members(), actorUserId, project.id());
@@ -97,11 +120,15 @@ public final class DefaultDefectService implements DefectService {
     }
 
     @Override public Defect transition(Long actorUserId, TransitionDefectCommand command) {
+        return transition(actorUserId, null, command);
+    }
+
+    @Override public Defect transition(Long actorUserId, Long projectId, TransitionDefectCommand command) {
         ServiceValidation.required(command, "command");
         ServiceValidation.required(command.defectId(), "defectId");
         ServiceValidation.required(command.targetStatus(), "targetStatus");
         ServiceValidation.required(command.lockVersion(), "lockVersion");
-        if (command.targetStatus() == DefectStatus.CLOSED) return close(actorUserId, command);
+        if (command.targetStatus() == DefectStatus.CLOSED) return close(actorUserId, projectId, command);
         if (command.targetStatus() == DefectStatus.REOPENED) {
             throw new ConflictException("Use reopen with a new FAIL evidence attempt");
         }
@@ -114,6 +141,7 @@ public final class DefaultDefectService implements DefectService {
         return transactions.execute(connection -> {
             ServiceDaos daos = daoFactory.create(connection);
             Defect preliminary = findDefect(daos, command.defectId());
+            ProjectOwnership.require(preliminary.projectId(), projectId);
             Project project = writableProject(daos, preliminary.projectId());
             lockParticipants(daos, project.id(), actorUserId);
             Defect current = lockDefect(daos, preliminary.id(), command.lockVersion());
@@ -126,6 +154,10 @@ public final class DefaultDefectService implements DefectService {
     }
 
     @Override public Defect reopen(Long actorUserId, ReopenDefectCommand command) {
+        return reopen(actorUserId, null, command);
+    }
+
+    @Override public Defect reopen(Long actorUserId, Long projectId, ReopenDefectCommand command) {
         ServiceValidation.required(command, "command");
         ServiceValidation.required(command.defectId(), "defectId");
         ServiceValidation.required(command.failureAttemptId(), "failureAttemptId");
@@ -134,6 +166,7 @@ public final class DefaultDefectService implements DefectService {
         return transactions.execute(connection -> {
             ServiceDaos daos = daoFactory.create(connection);
             Defect preliminary = findDefect(daos, command.defectId());
+            ProjectOwnership.require(preliminary.projectId(), projectId);
             AttemptContext preliminaryEvidence = loadAttemptContext(daos, command.failureAttemptId());
             ensureSameProject(preliminaryEvidence.run().projectId(), preliminary.projectId(), "Failure attempt");
             requireFail(preliminaryEvidence.attempt());
@@ -160,11 +193,16 @@ public final class DefaultDefectService implements DefectService {
     }
 
     @Override public TestAttemptDefect addEvidence(Long actorUserId, Long defectId, Long failureAttemptId) {
+        return addEvidence(actorUserId, null, defectId, failureAttemptId);
+    }
+
+    @Override public TestAttemptDefect addEvidence(Long actorUserId, Long projectId, Long defectId, Long failureAttemptId) {
         ServiceValidation.required(defectId, "defectId");
         ServiceValidation.required(failureAttemptId, "failureAttemptId");
         return transactions.execute(connection -> {
             ServiceDaos daos = daoFactory.create(connection);
             Defect preliminary = findDefect(daos, defectId);
+            ProjectOwnership.require(preliminary.projectId(), projectId);
             AttemptContext preliminaryEvidence = loadAttemptContext(daos, failureAttemptId);
             ensureSameProject(preliminaryEvidence.run().projectId(), preliminary.projectId(), "Failure attempt");
             requireFail(preliminaryEvidence.attempt());
@@ -186,11 +224,16 @@ public final class DefaultDefectService implements DefectService {
     }
 
     @Override public void removeEvidence(Long actorUserId, Long defectId, Long failureAttemptId) {
+        removeEvidence(actorUserId, null, defectId, failureAttemptId);
+    }
+
+    @Override public void removeEvidence(Long actorUserId, Long projectId, Long defectId, Long failureAttemptId) {
         ServiceValidation.required(defectId, "defectId");
         ServiceValidation.required(failureAttemptId, "failureAttemptId");
         transactions.execute(connection -> {
             ServiceDaos daos = daoFactory.create(connection);
             Defect preliminary = findDefect(daos, defectId);
+            ProjectOwnership.require(preliminary.projectId(), projectId);
             AttemptContext preliminaryEvidence = loadAttemptContext(daos, failureAttemptId);
             ensureSameProject(preliminaryEvidence.run().projectId(), preliminary.projectId(), "Failure attempt");
             Project project = writableProject(daos, preliminary.projectId());
@@ -233,10 +276,11 @@ public final class DefaultDefectService implements DefectService {
         });
     }
 
-    private Defect close(Long actorUserId, TransitionDefectCommand command) {
+    private Defect close(Long actorUserId, Long projectId, TransitionDefectCommand command) {
         return transactions.execute(connection -> {
             ServiceDaos daos = daoFactory.create(connection);
             Defect preliminary = findDefect(daos, command.defectId());
+            ProjectOwnership.require(preliminary.projectId(), projectId);
             List<TestAttemptDefect> preliminaryLinks = daos.attemptDefects().listAttemptsByDefect(preliminary.id());
             List<AttemptContext> preliminaryEvidence = preliminaryLinks.stream()
                     .map(link -> loadAttemptContext(daos, link.attemptId())).toList();
