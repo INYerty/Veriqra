@@ -1,5 +1,7 @@
 # Phase 2 Round 2 — 最终针对性 Review
 
+> Historical report: the original identifiers, paths, configuration names and checksums below are preserved as recorded. For current Veriqra configuration and deployment, see [VERIQRA-RENAME.md](VERIQRA-RENAME.md).
+
 日期：2026-09-07。重新读取目标 DAO、接口、MysqlFixture、安全测试、关系/步骤/计数器集成测试、事务管理器、连接池相关归还路径及 pom.xml，并检查实际 git status。
 
 结论：**批准修正命名后的 Round 2 持久化模式。没有未修复阻塞问题。** 本轮仅作两处 API 语义澄清，未扩展功能。

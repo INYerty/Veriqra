@@ -1,5 +1,7 @@
 # Phase 4 Round 1 Final Review
 
+> Historical report: the original identifiers, paths, configuration names and checksums below are preserved as recorded. For current Veriqra configuration and deployment, see [VERIQRA-RENAME.md](VERIQRA-RENAME.md).
+
 日期：2026-09-20。审查范围仅为 Authentication、Servlet Foundation、JSON Error Model，以及用于验证 Web→Service 模式的 Project / Requirement 首批 API。基线为 `5c196c1 feat(service): complete core business service layer` 加当前未提交 Round 1 working tree；`HEAD == origin/main`。本轮不进入 Round 2，不修改 schema，不 commit/push。
 
 ## 1. Final verdict

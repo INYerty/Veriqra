@@ -8,7 +8,10 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>io.github.lz007001cn</groupId>
-    <artifactId>qatrack</artifactId>
+    <artifactId>veriqra</artifactId>
+    <name>Veriqra</name>
+    <description>Software Test &amp; Quality Management Platform</description>
+    <url>https://veriqra.xyz</url>
     <version>0.1.0-SNAPSHOT</version>
 
     <packaging>war</packaging>

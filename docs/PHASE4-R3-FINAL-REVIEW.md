@@ -1,5 +1,7 @@
 # Phase 4 Round 3 Final Review — Execution / Defect REST API
 
+> Historical report: the original identifiers, paths, configuration names and checksums below are preserved as recorded. For current Veriqra configuration and deployment, see [VERIQRA-RENAME.md](VERIQRA-RENAME.md).
+
 ## 1. Final verdict
 
 **APPROVED。** Phase 4 Round 3 的 TestRun、Attempt 与 Defect REST API 保持了既有 Handler → Service → DAO → JDBC 分层，关键 ownership、历史不可变、幂等、并发、状态机和权限规则仍由 Service 保证。审查未发现 commit 前必须修复的生产缺陷。

@@ -1,5 +1,7 @@
 # IDEA Inspection / 提交前分析审计
 
+> Historical report: the original identifiers, paths, configuration names and checksums below are preserved as recorded. For current Veriqra configuration and deployment, see [VERIQRA-RENAME.md](VERIQRA-RENAME.md).
+
 日期：2026-09-08。范围为用户列出的 SQL 表解析、Fixture 清理、Markdown 代码片段及 Java 常规提示；没有推进 Round 3。
 
 **结论：本轮核对范围内，真实 correctness 错误 0；IDE 上下文/已审查非阻塞告警归为 4 类。** 没有拿到完整 IDEA Inspection 导出，4 是类别数量，不是工具告警总条数；表解析类别涉及用户列出的 12 个文件。没有运行 IDEA 完整提交前分析，因此不声称 IDE 已达到 0 warnings，也不将未提供的其他告警一律视为误报。

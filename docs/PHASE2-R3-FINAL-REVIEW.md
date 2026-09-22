@@ -1,5 +1,7 @@
 # Phase 2 Round 3 — 最终针对性 Review
 
+> Historical report: the original identifiers, paths, configuration names and checksums below are preserved as recorded. For current Veriqra configuration and deployment, see [VERIQRA-RENAME.md](VERIQRA-RENAME.md).
+
 日期：2026-09-08。范围为执行/快照/缺陷 DAO 与接口、对应 Model、集成测试、ExecutionTransactionIntegrationTest、MysqlFixture、安全测试，以及直接依赖的事务管理器、Counter、JdbcValues、pom 和冻结数据库定义。
 
 本次从实际工作区重新读取：Round 3 文件仍未提交；没有把上一轮 121 项通过直接当成本次验证结果。审查未发现需要修改实现的明确 bug，不作接口重命名、风格重构或无依据的锁扩展。

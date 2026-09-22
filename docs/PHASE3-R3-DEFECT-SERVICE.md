@@ -1,5 +1,7 @@
 # Phase 3 Round 3 — Defect Service and Retest Workflow
 
+> Historical report: the original identifiers, paths, configuration names and checksums below are preserved as recorded. For current Veriqra configuration and deployment, see [VERIQRA-RENAME.md](VERIQRA-RENAME.md).
+
 日期：2026-09-20。基线提交为 `14b9242 feat(service): add test planning and execution workflows`；开始时 `main` 与 `origin/main` 同步且工作区干净。本轮只实现 Defect Service、失败证据和重测闭环，没有修改冻结 schema、seed、ConnectionPool、JdbcTransactionManager 或 Maven 依赖。
 
 ## 1. Defect creation

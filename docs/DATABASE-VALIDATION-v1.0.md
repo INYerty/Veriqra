@@ -1,5 +1,7 @@
 # QATrack V1 数据库落地验证报告
 
+> Historical report: the original identifiers, paths, configuration names and checksums below are preserved as recorded. For current Veriqra configuration and deployment, see [VERIQRA-RENAME.md](VERIQRA-RENAME.md).
+
 日期：2026-09-06。版本：[QATrack V1 Domain Model Freeze v1.0](DOMAIN-FREEZE-v1.0.md)。
 本轮先选择 Run 归属方案 A、宣布冻结，再编写和执行 SQL。未实现 Java/Servlet/DAO/Service/前端，未 commit/push。
 

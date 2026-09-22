@@ -1,5 +1,7 @@
 # 仓库与环境审计
 
+> Historical report: the original identifiers, paths, configuration names and checksums below are preserved as recorded. For current Veriqra configuration and deployment, see [VERIQRA-RENAME.md](VERIQRA-RENAME.md).
+
 检查日期：2026-09-06（Asia/Singapore）。本轮仅审计和修复最小骨架。
 本文记录当日实测结果；后续环境或代码变化后需要重新验证。
 

@@ -1,5 +1,7 @@
 # Cloud Deployment Handoff / 云端部署交接
 
+> Historical report: the original identifiers, paths, configuration names and checksums below are preserved as recorded. For current Veriqra configuration and deployment, see [VERIQRA-RENAME.md](VERIQRA-RENAME.md).
+
 > 本文保留 Round 3 首次受控部署时的交接快照（包括当时的 WAR checksum 与安全缺口）。后续 Public Deployment Security Gate 的代码、配置和公网验收要求以 [PUBLIC-DEPLOYMENT-SECURITY.md](PUBLIC-DEPLOYMENT-SECURITY.md) 为准；新 WAR 必须重新核对 checksum，写请求现在还要求严格 Origin。
 
 日期：2026-09-21。范围：Phase 4 Round 3 完成后的首次云端部署准备，仍等待 Final Review。本文件为方案，未连接或修改任何服务器，未部署、commit/push 或进入 Round 4。

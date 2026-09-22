@@ -1,5 +1,7 @@
 # Phase 2 Final Persistence Review
 
+> Historical report: the original identifiers, paths, configuration names and checksums below are preserved as recorded. For current Veriqra configuration and deployment, see [VERIQRA-RENAME.md](VERIQRA-RENAME.md).
+
 审查日期：2026-09-08 至 2026-09-09。基线：V1 Domain Model Freeze v1.0，Java 21、原生 JDBC、MySQL 8.0.46、Connector/J 9.7.0。恢复工作时先检查实际 working tree 与 diff，继续已有审计，不覆盖 Round 4 未提交成果。
 
 ## 1. Final verdict

@@ -1,5 +1,7 @@
 # Phase 2 Round 2 — Core Asset & Planning Persistence
 
+> Historical report: the original identifiers, paths, configuration names and checksums below are preserved as recorded. For current Veriqra configuration and deployment, see [VERIQRA-RENAME.md](VERIQRA-RENAME.md).
+
 日期：2026-09-07。实际仓库：`<PROJECT_ROOT>`。
 
 本轮沿用 Round 1 审查批准的 ConnectionPool、JdbcTransactionManager、异常转换、显式 Connection 所有权和 immutable record 模式。实现 8 张表的持久化访问，没有实现业务 Service、Servlet 或后续执行模块。

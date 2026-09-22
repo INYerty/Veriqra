@@ -1,5 +1,7 @@
 # Phase 2 Round 1 — 针对性代码审查
 
+> Historical report: the original identifiers, paths, configuration names and checksums below are preserved as recorded. For current Veriqra configuration and deployment, see [VERIQRA-RENAME.md](VERIQRA-RENAME.md).
+
 审查日期：2026-09-07。范围为 ConnectionPool、JdbcTransactionManager、DatabaseConfig、JdbcUserDao、MysqlFixture，以及直接依赖的接口、Project DAO、Model、异常类、测试、pom.xml 和本地配置排除规则。结论依据本次实际文件和执行结果，不替代 Phase 1 冻结记录。
 
 **修复后批准当前课程级连接池、显式共享 Connection 的事务模式，以及 User/Project DAO 的资源管理和映射模式作为后续基础。当前没有未修复的阻塞问题。** DAO 写入和写后回读应置于外层事务；不同领域对象的更新规则不能机械复制。

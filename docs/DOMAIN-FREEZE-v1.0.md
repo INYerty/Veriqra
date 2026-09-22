@@ -1,5 +1,7 @@
 # QATrack V1 Domain Model Freeze v1.0
 
+> Historical report: the original identifiers, paths, configuration names and checksums below are preserved as recorded. For current Veriqra configuration and deployment, see [VERIQRA-RENAME.md](VERIQRA-RENAME.md).
+
 冻结日期：2026-09-06。依据本轮用户授权，在重新检查当前设计后冻结领域边界与逻辑结构，随后进入 MySQL 8.0.46 落地验证。
 
 ## Run 项目归属最终选择

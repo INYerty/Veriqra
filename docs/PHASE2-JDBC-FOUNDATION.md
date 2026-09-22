@@ -1,5 +1,7 @@
 # Phase 2 Round 1 — JDBC Persistence Foundation
 
+> Historical report: the original identifiers, paths, configuration names and checksums below are preserved as recorded. For current Veriqra configuration and deployment, see [VERIQRA-RENAME.md](VERIQRA-RENAME.md).
+
 日期：2026-09-07。基线为 Java 21、Maven WAR、MySQL 8.0.46、V1 Freeze v1.0。
 本轮只实现 JDBC 基础设施以及 User / Project 的持久化验证；没有修改冻结模型、schema.sql 或 seed.sql，没有实现 Service 业务、Servlet、Authentication 或前端。
 

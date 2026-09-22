@@ -2,7 +2,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory)][string]$MySql,
-    [Parameter(Mandatory)][ValidatePattern('^qatrack_v1_verify_[a-z0-9_]+$')][string]$Database,
+    [Parameter(Mandatory)][ValidatePattern('^veriqra_v1_verify_[a-z0-9_]+$')][string]$Database,
     [string]$Server = '127.0.0.1',
     [int]$Port = 3306,
     [string]$User = 'root',

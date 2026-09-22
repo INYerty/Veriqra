@@ -1,4 +1,4 @@
-# QATrack V1 数据库
+# Veriqra V1 数据库
 
 冻结版本：[Freeze v1.0](../docs/DOMAIN-FREEZE-v1.0.md)，目标 MySQL 8.0.46，19 表、154 字段。
 见 [完整设计](../docs/DATABASE-DESIGN-DRAFT.md) 和 [实测报告](../docs/DATABASE-VALIDATION-v1.0.md)。
@@ -13,7 +13,7 @@
 | queries.sql | 10 组核心查询与 2 条 EXPLAIN ANALYZE |
 | service-invariants.sql | 22 项只读业务一致性检查；不安装触发器 |
 | inspect.sql | 真实对象、索引、引用动作、CHECK 状态及行数 |
-| verify.ps1 | PowerShell 7 验证入口；只创建新的 qatrack_v1_verify_* 数据库 |
+| verify.ps1 | PowerShell 7 验证入口；只创建新的 veriqra_v1_verify_* 数据库 |
 | verification/ | 本轮实测证据，不是 MySQL 数据目录 |
 
 ## 从空库复现
@@ -27,11 +27,11 @@
 ```powershell
 .\database\verify.ps1 `
   -MySql 'C:\Program Files\MySQL\MySQL Server 8.0\bin\mysql.exe' `
-  -Server 127.0.0.1 -Port 3306 -User qatrack_validator `
-  -LoginPath qatrack-local -Database qatrack_v1_verify_demo01
+  -Server 127.0.0.1 -Port 3306 -User veriqra_validator `
+  -LoginPath veriqra-local -Database veriqra_v1_verify_demo01
 ```
 
-本轮实际使用独立实例 127.0.0.1:13306、新库 qatrack_v1_verify_freeze10，未改原 MySQL80 服务。
+历史冻结验证实际使用独立实例 127.0.0.1:13306、新库 qatrack_v1_verify_freeze10；该名称作为历史事实保留。
 验证数据目录位于 E 盘，实例收尾正常关闭；复现时使用明确且正在运行的目标实例。
 
 ## 手动执行
@@ -39,8 +39,8 @@
 在仓库根目录启动 MySQL 客户端，显式创建并选择新库，再依次 SOURCE：
 
 ```sql
-CREATE DATABASE qatrack_v1_verify_manual01 CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;
-USE qatrack_v1_verify_manual01;
+CREATE DATABASE veriqra_v1_verify_manual01 CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;
+USE veriqra_v1_verify_manual01;
 SOURCE database/schema.sql;
 SOURCE database/seed.sql;
 SOURCE database/constraint-tests.sql;

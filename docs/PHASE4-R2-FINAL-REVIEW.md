@@ -1,5 +1,7 @@
 # Phase 4 Round 2 Final Review
 
+> Historical report: the original identifiers, paths, configuration names and checksums below are preserved as recorded. For current Veriqra configuration and deployment, see [VERIQRA-RENAME.md](VERIQRA-RENAME.md).
+
 日期：2026-09-21。审查范围仅为 Phase 4 Round 2 — Test Asset REST API。基线为 `267f783 feat(web): add authentication and servlet foundation` 加当前未提交 Round 2 working tree。本轮不进入 Round 3，不修改 schema，不 commit/push。
 
 ## 1. Final verdict

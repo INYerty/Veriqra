@@ -1,5 +1,7 @@
 # Phase 3 Round 2 — Test Plan, Run and Execution Service
 
+> Historical report: the original identifiers, paths, configuration names and checksums below are preserved as recorded. For current Veriqra configuration and deployment, see [VERIQRA-RENAME.md](VERIQRA-RENAME.md).
+
 日期：2026-09-16。基线提交 `a501822 feat(service): add project and test asset business logic`；开始时 `main` 与 `origin/main` 同步且工作区干净。本轮只实现 TestPlan、TestRun 和人工 TestExecution Service，没有修改冻结 schema、seed、ConnectionPool、JdbcTransactionManager 或 Maven 依赖。
 
 ## 1. TestPlan workflow

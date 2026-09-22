@@ -1,5 +1,7 @@
 # QATrack Public Deployment Security Final Review
 
+> Historical report: the original identifiers, paths, configuration names and checksums below are preserved as recorded. For current Veriqra configuration and deployment, see [VERIQRA-RENAME.md](VERIQRA-RENAME.md).
+
 Review date: 2026-09-21
 
 Scope: Phase 4 Deployment Hardening only

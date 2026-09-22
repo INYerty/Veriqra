@@ -1,5 +1,7 @@
 # Phase 2 Round 4 — Automation & Import Persistence
 
+> Historical report: the original identifiers, paths, configuration names and checksums below are preserved as recorded. For current Veriqra configuration and deployment, see [VERIQRA-RENAME.md](VERIQRA-RENAME.md).
+
 日期：2026-09-08。开始时 main 与 origin/main 的本地跟踪状态一致，工作区干净。沿用 Round 1/2/3 已批准的原生 JDBC 模式，未修改冻结 schema。
 
 ## 1. 新增持久化能力

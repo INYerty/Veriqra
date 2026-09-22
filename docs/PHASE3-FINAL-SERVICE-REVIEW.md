@@ -1,5 +1,7 @@
 # Phase 3 Final Service Review
 
+> Historical report: the original identifiers, paths, configuration names and checksums below are preserved as recorded. For current Veriqra configuration and deployment, see [VERIQRA-RENAME.md](VERIQRA-RENAME.md).
+
 日期：2026-09-20。审计基线为 `7c98a67 feat(service): add defect lifecycle and retest workflow` 加当前未提交的 Round 4 Automation / Import 实现。本报告以实际 Java、DAO SQL、冻结 schema 和真实 MySQL 8.0.46 测试为准；没有开发 Servlet、JSON、Authentication 或前端，没有修改 schema、seed、ConnectionPool、JdbcTransactionManager 或 Maven 依赖。
 
 ## 1. Final verdict

@@ -1,5 +1,7 @@
 # Phase 3 Round 1 — Service Foundation
 
+> Historical report: the original identifiers, paths, configuration names and checksums below are preserved as recorded. For current Veriqra configuration and deployment, see [VERIQRA-RENAME.md](VERIQRA-RENAME.md).
+
 日期：2026-09-16。基线提交 `2474755 feat(backend): complete JDBC persistence foundation`，开始时 `main` 与 `origin/main` 同步且工作区干净。本轮只实现 Project、Requirement、TestCase、Traceability 的业务层，不修改冻结 schema、seed、ConnectionPool、JdbcTransactionManager、Maven 依赖或其他业务模块。
 
 ## 1. Service architecture

@@ -1,5 +1,7 @@
 # Phase 2 Round 3 — Execution & Defect Persistence
 
+> Historical report: the original identifiers, paths, configuration names and checksums below are preserved as recorded. For current Veriqra configuration and deployment, see [VERIQRA-RENAME.md](VERIQRA-RENAME.md).
+
 日期：2026-09-08。开始时 main 与 origin/main 同步，工作区干净。沿用已批准的显式 Connection、事务管理、资源关闭和异常转换模式，冻结 schema 未变。
 
 ## 1. 实现范围

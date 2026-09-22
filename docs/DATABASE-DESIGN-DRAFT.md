@@ -1,4 +1,6 @@
-# QATrack V1 数据库设计（Freeze v1.0）
+# Veriqra V1 数据库设计（Freeze v1.0）
+
+> Veriqra 更名说明：本文较早的测试数量、提交 ID、旧包名/上下文、WAR 文件名与校验值属于更名前历史证据；最新发布候选、兼容规则及 ROOT 部署请以 [VERIQRA-RENAME.md](VERIQRA-RENAME.md) 为准。数据库物理名称保持不变。
 
 状态：**QATrack V1 Domain Model Freeze v1.0**，冻结并于 MySQL 8.0.46 实际落地验证。日期：2026-09-06。
 本文件保留原文件名以兼容链接，内容已是冻结定义，不再是 20 表草案。

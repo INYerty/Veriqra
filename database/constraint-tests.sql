@@ -43,7 +43,7 @@ BEGIN
   DECLARE v_failures INT;
   SELECT COUNT(*) INTO v_failures FROM qt_test_results WHERE outcome='FAIL';
   IF v_failures<>0 THEN
-    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='QATrack constraint validation failed; inspect the test output';
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Veriqra constraint validation failed; inspect the test output';
   END IF;
 END$$
 DELIMITER ;

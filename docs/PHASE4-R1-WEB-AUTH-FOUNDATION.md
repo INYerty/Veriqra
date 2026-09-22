@@ -1,5 +1,7 @@
 # Phase 4 Round 1 — Authentication + Servlet Foundation + JSON Error Model
 
+> Historical report: the original identifiers, paths, configuration names and checksums below are preserved as recorded. For current Veriqra configuration and deployment, see [VERIQRA-RENAME.md](VERIQRA-RENAME.md).
+
 日期：2026-09-20。开始时 `main`、`origin/main` 和 `git ls-remote origin refs/heads/main` 均为 `5c196c1 feat(service): complete core business service layer`；working tree clean。重新读取实际仓库后实施。本轮不 commit/push。
 
 ## 1. HTTP architecture

@@ -1,4 +1,4 @@
--- Linked acceptance fixtures for QATrack V1; empty tables only, no upserts.
+-- Linked acceptance fixtures for Veriqra V1; empty tables only, no upserts.
 -- Password hashes use discarded random input: fixtures are not usable login credentials.
 -- 10 projects, each with planned / ad-hoc / planless CI execution.
 -- FAIL -> PASS history remains linked to the original FAIL; BLOCKED, SKIPPED and NOT_RUN differ.

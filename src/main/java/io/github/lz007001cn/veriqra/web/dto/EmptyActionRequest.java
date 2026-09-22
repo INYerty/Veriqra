@@ -1,0 +1,3 @@
+package io.github.lz007001cn.veriqra.web.dto;
+/** Explicit empty JSON object for actions with no caller-supplied fields. */
+public record EmptyActionRequest() { }

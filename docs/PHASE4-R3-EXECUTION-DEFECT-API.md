@@ -1,5 +1,7 @@
 # Phase 4 Round 3 — Test Run, Execution & Defect REST API
 
+> Historical report: the original identifiers, paths, configuration names and checksums below are preserved as recorded. For current Veriqra configuration and deployment, see [VERIQRA-RENAME.md](VERIQRA-RENAME.md).
+
 日期：2026-09-21。实现基线：`606d6d8e84ef398907e377f1b211a9f6a4e05a7d`（Round 2 Final Review 已批准）。开始时本地 main、origin/main 与远端 main 一致，working tree clean。本轮不 commit/push。
 
 ## 1. Scope 与架构

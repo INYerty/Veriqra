@@ -1,5 +1,7 @@
 # Phase 4 Round 2 — Test Asset REST API
 
+> Historical report: the original identifiers, paths, configuration names and checksums below are preserved as recorded. For current Veriqra configuration and deployment, see [VERIQRA-RENAME.md](VERIQRA-RENAME.md).
+
 日期：2026-09-20。
 
 ## 1. 基线与范围

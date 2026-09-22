@@ -1,5 +1,7 @@
 # Public Deployment Security Gate
 
+> Veriqra 更名说明：本文较早的测试数量、提交 ID、旧包名/上下文、WAR 文件名与校验值属于更名前历史证据；最新发布候选、兼容规则及 ROOT 部署请以 [VERIQRA-RENAME.md](VERIQRA-RENAME.md) 为准。数据库物理名称保持不变。
+
 范围：Phase 4 Deployment Hardening，2026-09-21。仅本地 Web 安全与文档；不改变业务规则、schema、seed、DAO、连接池或事务管理器，不开始 Round 4。本轮未连接 ECS、未修改服务器、未 commit/push。
 
 开始时本地 `main == origin/main == b920702`，working tree clean。此前 ECS 受控 smoke 成功是用户提供的部署记录，本轮没有重新核验云端状态。已有部署仍使用旧 WAR；本文件中的新策略必须随新 WAR 和服务器配置一起交付。
@@ -43,7 +45,7 @@ username 按 ASCII 认证契约处理，计数键忽略大小写和尾部空白�
 `AuthenticationFilter` 在认证和路由之前调用 `SameOriginPolicy`。除 GET/HEAD/OPTIONS 外的所有方法必须同时满足：
 
 1. 正好一个 `Origin`，解析为当前允许的 scheme/host/effective port。
-2. 正好一个 `X-QATrack-Request: 1`。
+2. 正好一个 `X-Veriqra-Request: 1`；一代兼容期也接受旧请求头，详见更名指南。两种头同时出现时都必须各自只有一个且值为 `1`。
 3. JSON body 仍由共享 `JsonHttp` 要求 `application/json`，严格拒绝 malformed/unknown/duplicate/trailing JSON。
 
 缺失 Origin、`Origin: null`、多 Origin、带路径/查询/fragment/userinfo 的 Origin、不同 scheme/host/port 均拒绝 403，不回退 Referer。curl/API smoke 也必须显式带合法 Origin，不设“非浏览器免检”例外。GET 不要求 Origin/header，仍检查 Host，不产生业务写入。
@@ -57,11 +59,11 @@ username 按 ASCII 认证契约处理，计数键忽略大小写和尾部空白�
 新增环境变量：
 
 ```ini
-QATRACK_PUBLIC_ORIGIN=https://qatrack.example.com
-QATRACK_SESSION_SECURE=true
+VERIQRA_PUBLIC_ORIGIN=https://veriqra.xyz
+VERIQRA_SESSION_SECURE=true
 ```
 
-`qatrack.example.com` 是占位符，必须换为最终真实域名。Origin 不包含 `/qatrack`、结尾 `/`、路径或通配符，仅允许一个 HTTPS Origin。非法配置启动失败；配置了 public origin 却没有显式 `Secure=true` 也启动失败。
+`veriqra.xyz` 是目标生产域名。Origin 不包含 context path、结尾 `/`、路径或通配符，仅允许一个 HTTPS Origin。非法配置启动失败；配置了 public origin 却没有显式 `Secure=true` 也启动失败。
 
 所有 API 请求（含 GET）验证单一 Host，与容器提供的 scheme/serverName/serverPort 一致，再与固定 public origin 一致。不能靠同时伪造 Host 与 Origin 选出任意受信域名。
 
@@ -71,9 +73,9 @@ QATRACK_SESSION_SECURE=true
 
 ## 5. Cookie policy
 
-`SessionCookiePolicy` 从 ApplicationListener 在启动阶段设置：Secure 使用明确环境开关，HttpOnly=true、SameSite=Lax、Path=实际 context（通常 `/qatrack`）、30 分钟闲置超时。
+`SessionCookiePolicy` 从 ApplicationListener 在启动阶段设置：Secure 使用明确环境开关，HttpOnly=true、SameSite=Lax、Path=实际 context（ROOT 为 `/`，命名部署为 `/veriqra`）、30 分钟闲置超时。
 
-本地 HTTP 可以 `QATRACK_SESSION_SECURE=false`，但不得同时配置 public origin。应用不因请求携带 `X-Forwarded-Proto: https` 而改变 Secure；生产必须显式 true。未设置 cookie Domain，使用 host-only cookie。测试同时验证 Secure/非 Secure、HttpOnly、SameSite 和 Path。
+本地 HTTP 可以 `VERIQRA_SESSION_SECURE=false`，但不得同时配置 public origin。应用不因请求携带 `X-Forwarded-Proto: https` 而改变 Secure；生产必须显式 true。未设置 cookie Domain，使用 host-only cookie。测试同时验证 Secure/非 Secure、HttpOnly、SameSite 和 Path。
 
 ## 6. Trusted proxy model
 
@@ -82,8 +84,8 @@ QATRACK_SESSION_SECURE=true
 Nginx 单层边缘必须**覆盖**而非追加客户端的转发信息：
 
 ```nginx
-# 放在已经具备有效 TLS 的应用 server/location 中，域名为占位符。
-location /qatrack/ {
+# 放在已经具备有效 TLS 的应用 server/location 中，server_name 使用 veriqra.xyz。
+location / {
     # 安全验收完成前保留既有 allow/deny 限制。
     proxy_pass http://127.0.0.1:8080;
     proxy_set_header Host $host;
@@ -96,7 +98,7 @@ location /qatrack/ {
 }
 ```
 
-Nginx 必须明确匹配最终 `server_name`，默认虚拟主机拒绝未知 Host；不能为客户端添加 Origin 或 X-QATrack-Request，也不能加 CORS。单层边缘不使用 `$proxy_add_x_forwarded_for` 保留外部伪造链。原受控部署记录里的追加方式要在公网验收前调整。
+Nginx 必须明确匹配最终 `server_name`，默认虚拟主机拒绝未知 Host；不能为客户端添加 Origin 或 X-Veriqra-Request，也不能加 CORS。单层边缘不使用 `$proxy_add_x_forwarded_for` 保留外部伪造链。原受控部署记录里的追加方式要在公网验收前调整。
 
 Tomcat Connector 保持 `address="127.0.0.1"`。在选定 Engine/Host 范围配置 RemoteIpValve，限制 internalProxies 为实际环回 Nginx（以下只接受 IPv4/IPv4-mapped loopback）：
 
@@ -147,12 +149,12 @@ HTTPS、HTTP→HTTPS redirect、HSTS、frame policy 和 Referrer-Policy 放在 N
 ## 12. Public deployment checklist
 
 - [ ] 确定稳定域名/DNS，配置有效 TLS、80→443 与未知 Host 拒绝。
-- [ ] 保留 `/qatrack/` 来源限制，备份当前 WAR/配置/数据库，核对新发布 commit 和 checksum。
-- [ ] 配置 QATRACK_PUBLIC_ORIGIN 为最终 HTTPS Origin，QATRACK_SESSION_SECURE=true。
+- [ ] 保留 `/` 来源限制，备份当前 WAR/配置/数据库，核对新发布 commit 和 checksum。
+- [ ] 配置 VERIQRA_PUBLIC_ORIGIN 为最终 HTTPS Origin，VERIQRA_SESSION_SECURE=true。
 - [ ] 配置 Nginx 覆盖/清除 forwarded headers 与 Tomcat loopback-only RemoteIpValve。
 - [ ] 实测正确 Host/Origin 可写，缺失/null/错误 Origin 返回403，错误 Host 被拒绝。
 - [ ] 从外部发送伪造 X-Forwarded-For/Proto/Host，确认不能改变限流 client IP、scheme 或可信 Host。
-- [ ] HTTPS 登录实测 Set-Cookie: Secure; HttpOnly; SameSite=Lax; Path=/qatrack，rotation/logout有效。
+- [ ] HTTPS 登录实测 Set-Cookie: Secure; HttpOnly; SameSite=Lax; Path=/，rotation/logout有效。
 - [ ] 用专门受控账号验证失败阈值、429/Retry-After、窗口恢复；不要故意锁定唯一管理员的登录来源。
 - [ ] 重新执行真实 API 核心链、持久化、restart/redeploy smoke，检查无意外500或秘密日志。
 - [ ] 验证8080/3306仍仅环回、运行DB账号无DDL、不执行seed、不影响 status-api/Docker/ZZZSwitch。
@@ -160,6 +162,8 @@ HTTPS、HTTP→HTTPS redirect、HSTS、frame policy 和 Referrer-Policy 放在 N
 - [ ] 完成 Public Deployment Final Review 和以上服务器验收后，才解除应用来源限制并做外部 smoke。
 
 本清单为空表示服务器侧未在本轮执行，不能把本地测试通过当作公网已开放。
+
+> Historical evidence below is preserved from the pre-rename security review. It describes the previous release, not the current Veriqra artifact; see VERIQRA-RENAME.md for current validation.
 
 ## 13. Remaining limitations and validation
 

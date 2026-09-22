@@ -1,5 +1,7 @@
 # Phase 3 Round 4 — Automation Mapping and JUnit Import Service
 
+> Historical report: the original identifiers, paths, configuration names and checksums below are preserved as recorded. For current Veriqra configuration and deployment, see [VERIQRA-RENAME.md](VERIQRA-RENAME.md).
+
 日期：2026-09-20。基线提交 `7c98a67 feat(service): add defect lifecycle and retest workflow`；开始时 `main` 与 `origin/main` 同步且工作区干净。本轮只实现 Automation Mapping、JUnit XML 预览和原子导入，没有修改冻结 schema、seed、ConnectionPool、JdbcTransactionManager 或 Maven 依赖。
 
 ## 1. Automation Identity

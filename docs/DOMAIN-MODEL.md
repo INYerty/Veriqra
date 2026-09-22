@@ -1,6 +1,8 @@
-# QATrack V1 领域模型
+# Veriqra V1 领域模型
 
-日期：2026-09-06。状态：**QATrack V1 Domain Model Freeze v1.0**。已完成 MySQL 8.0.46 DDL 与测试数据落地验证，尚无 Java/前端业务实现。
+> Veriqra 更名说明：本文较早的测试数量、提交 ID、旧包名/上下文、WAR 文件名与校验值属于更名前历史证据；最新发布候选、兼容规则及 ROOT 部署请以 [VERIQRA-RENAME.md](VERIQRA-RENAME.md) 为准。数据库物理名称保持不变。
+
+历史冻结记录（2026-09-06，当时产品名为 QATrack）：状态：**QATrack V1 Domain Model Freeze v1.0**。已完成 MySQL 8.0.46 DDL 与测试数据落地验证，当时尚无 Java/前端业务实现；当前实现状态见 README。
 数据库采用本轮明确指定的 MySQL 8.0.46。完整字段、默认值、约束及索引见 [数据库设计草案](DATABASE-DESIGN-DRAFT.md)。
 
 已确认的产品选择（本轮补充已纳入）：

@@ -1,4 +1,4 @@
--- QATrack V1 Domain Model Freeze v1.0
+-- Veriqra V1 Domain Model Freeze v1.0
 -- MySQL 8.0.46; execute in an EMPTY, explicitly selected database.
 -- No CREATE DATABASE / USE / DROP / IF NOT EXISTS: never hide a partial installation.
 SET NAMES utf8mb4 COLLATE utf8mb4_0900_ai_ci;
