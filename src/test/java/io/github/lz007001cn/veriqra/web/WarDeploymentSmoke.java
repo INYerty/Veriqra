@@ -31,7 +31,7 @@ public final class WarDeploymentSmoke {
         for (String contextPath : new String[]{"", "/veriqra"}) {
             for (int round = 0; round < 2; round++) deploy(Path.of(args[0]).toAbsolutePath(), contextPath);
         }
-        System.out.println("WAR_SMOKE_PASS: ROOT and /veriqra, two independent deployment/shutdown cycles each; protected API returns 401 JSON");
+        System.out.println("WAR_SMOKE_PASS: ROOT and /veriqra, two independent deployment/shutdown cycles each; static resources and protected API verified");
     }
 
     private static void deploy(Path war, String contextPath) throws Exception {
@@ -53,6 +53,22 @@ public final class WarDeploymentSmoke {
                 var response = client.send(request, HttpResponse.BodyHandlers.ofString());
                 if (response.statusCode() != 401 || !response.body().contains("UNAUTHENTICATED")) {
                     throw new AssertionError("Unexpected protected response status: " + response.statusCode());
+                }
+                for (String path : new String[]{"/", "/index.html", "/login.html", "/assets/css/app.css",
+                        "/assets/js/api.js", "/assets/js/app.js", "/assets/js/login.js",
+                        "/assets/vendor/jquery-3.7.1.min.js", "/assets/vendor/bootstrap-5.3.8.min.css",
+                        "/assets/vendor/bootstrap-5.3.8.bundle.min.js"}) {
+                    var resource = client.send(HttpRequest.newBuilder(URI.create("http://127.0.0.1:"
+                            + tomcat.getConnector().getLocalPort() + contextPath + path)).GET().build(),
+                            HttpResponse.BodyHandlers.ofString());
+                    if (resource.statusCode() != 200 || resource.body().isBlank()) {
+                        throw new AssertionError("Resource failed in " + contextPath + ": " + path
+                                + " status=" + resource.statusCode());
+                    }
+                    String type = resource.headers().firstValue("Content-Type").orElse("");
+                    String expected = path.endsWith(".css") ? "text/css" : path.endsWith(".js")
+                            ? "application/javascript" : "text/html";
+                    if (!type.startsWith(expected)) throw new AssertionError("Wrong MIME type for " + path + ": " + type);
                 }
                 for (String path : new String[]{"/WEB-INF/web.xml", "/missing-resource.css"}) {
                     var resource = client.send(HttpRequest.newBuilder(URI.create("http://127.0.0.1:"

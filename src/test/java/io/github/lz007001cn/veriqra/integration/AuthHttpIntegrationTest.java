@@ -121,6 +121,88 @@ class AuthHttpIntegrationTest extends MysqlFixture {
         assertEquals(401, call("GET", "/auth/me", null).statusCode());
     }
 
+    @Test void frontendResourcesAndNamedContextUseRealAuthAndProjectApi() throws Exception {
+        String root = "http://127.0.0.1:" + tomcat.getConnector().getLocalPort();
+        assertFrontendResources(root);
+        long projectId = createProject();
+        Tomcat named = new Tomcat();
+        named.setAddDefaultWebXmlToWebapp(false);
+        named.setBaseDir(directory.resolve("named-tomcat").toString());
+        named.setPort(0);
+        named.getConnector().setProperty("address", "127.0.0.1");
+        Context context = named.addWebapp("/veriqra", Path.of("src/main/webapp").toAbsolutePath().toString());
+        context.setParentClassLoader(getClass().getClassLoader());
+        try {
+            named.start();
+            assertTrue(context.getState().isAvailable());
+            String origin = "http://127.0.0.1:" + named.getConnector().getLocalPort();
+            String namedBase = origin + "/veriqra";
+            assertFrontendResources(namedBase);
+            var wrong = client.send(HttpRequest.newBuilder(URI.create(namedBase + "/api/auth/login"))
+                    .header("Origin", origin).header("X-Veriqra-Request", "1")
+                    .header("Content-Type", "application/json")
+                    .POST(HttpRequest.BodyPublishers.ofString("{\"username\":\"web_admin\",\"password\":\"wrong\"}"))
+                    .build(), HttpResponse.BodyHandlers.ofString());
+            assertEquals(401, wrong.statusCode());
+            assertFalse(wrong.body().contains("web_admin"));
+            var login = client.send(HttpRequest.newBuilder(URI.create(namedBase + "/api/auth/login"))
+                    .header("Origin", origin).header("X-Veriqra-Request", "1")
+                    .header("Content-Type", "application/json")
+                    .POST(HttpRequest.BodyPublishers.ofString("{\"username\":\"web_admin\",\"password\":\"fixture-login-password\"}"))
+                    .build(), HttpResponse.BodyHandlers.ofString());
+            assertEquals(200, login.statusCode(), login.body());
+            String setCookie = login.headers().firstValue("Set-Cookie").orElseThrow();
+            assertTrue(setCookie.contains("Path=/veriqra"));
+            String session = setCookie.split(";", 2)[0];
+            var me = client.send(HttpRequest.newBuilder(URI.create(namedBase + "/api/auth/me"))
+                    .header("Cookie", session).GET().build(), HttpResponse.BodyHandlers.ofString());
+            assertEquals(200, me.statusCode());
+            assertTrue(me.body().contains("web_admin"));
+            var projects = client.send(HttpRequest.newBuilder(URI.create(namedBase + "/api/projects"))
+                    .header("Cookie", session).GET().build(), HttpResponse.BodyHandlers.ofString());
+            assertEquals(200, projects.statusCode());
+            assertTrue(projects.body().contains("中文项目"));
+            var detail = client.send(HttpRequest.newBuilder(URI.create(namedBase + "/api/projects/" + projectId))
+                    .header("Cookie", session).GET().build(), HttpResponse.BodyHandlers.ofString());
+            assertEquals(200, detail.statusCode());
+            var logout = client.send(HttpRequest.newBuilder(URI.create(namedBase + "/api/auth/logout"))
+                    .header("Cookie", session).header("Origin", origin).header("X-Veriqra-Request", "1")
+                    .POST(HttpRequest.BodyPublishers.noBody()).build(), HttpResponse.BodyHandlers.ofString());
+            assertEquals(204, logout.statusCode());
+            var after = client.send(HttpRequest.newBuilder(URI.create(namedBase + "/api/auth/me"))
+                    .header("Cookie", session).GET().build(), HttpResponse.BodyHandlers.ofString());
+            assertEquals(401, after.statusCode());
+        } finally { try { named.stop(); } finally { named.destroy(); } }
+    }
+
+    void assertFrontendResources(String baseUrl) throws Exception {
+        for (String path : List.of("/", "/login.html", "/index.html", "/assets/css/app.css",
+                "/assets/js/api.js", "/assets/js/login.js", "/assets/js/app.js",
+                "/assets/vendor/jquery-3.7.1.min.js", "/assets/vendor/bootstrap-5.3.8.min.css",
+                "/assets/vendor/bootstrap-5.3.8.bundle.min.js")) {
+            var result = client.send(HttpRequest.newBuilder(URI.create(baseUrl + path)).GET().build(),
+                    HttpResponse.BodyHandlers.ofString());
+            assertEquals(200, result.statusCode(), path);
+            assertFalse(result.body().isBlank(), path);
+            if (path.endsWith(".html") || path.equals("/")) {
+                assertTrue(result.headers().firstValue("Content-Type").orElse("").startsWith("text/html"), path);
+            } else if (path.endsWith(".css")) {
+                assertTrue(result.headers().firstValue("Content-Type").orElse("").startsWith("text/css"), path);
+            } else if (path.endsWith(".js")) {
+                assertTrue(result.headers().firstValue("Content-Type").orElse("").startsWith("application/javascript"), path);
+            }
+            if (path.endsWith(".html")) {
+                assertFalse(result.body().contains("href=\"/api"));
+                assertFalse(result.body().contains("src=\"/veriqra"));
+            }
+        }
+        var apiJs = client.send(HttpRequest.newBuilder(URI.create(baseUrl + "/assets/js/api.js")).GET().build(),
+                HttpResponse.BodyHandlers.ofString()).body();
+        assertTrue(apiJs.contains("'X-Veriqra-Request': '1'"));
+        assertTrue(apiJs.contains("new URL('api/'"));
+        assertFalse(apiJs.contains("'/api/"));
+    }
+
     @Test void realProjectRequirementValidationAndCurrentMembership() throws Exception {
         long project = createProject();
         assertEquals(409, call("POST", "/projects", "{\"projectKey\":\"WEB\",\"name\":\"duplicate\"}").statusCode());

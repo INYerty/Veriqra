@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Workspace · Veriqra</title>
+  <link rel="stylesheet" href="assets/vendor/bootstrap-5.3.8.min.css">
+  <link rel="stylesheet" href="assets/css/app.css">
+  <script defer src="assets/vendor/jquery-3.7.1.min.js"></script>
+  <script defer src="assets/vendor/bootstrap-5.3.8.bundle.min.js"></script>
+  <script defer src="assets/js/api.js"></script>
+  <script defer src="assets/js/app.js"></script>
+</head>
+<body class="app-page">
+  <div id="bootstrap-screen" class="bootstrap-screen" role="status" aria-live="polite">
+    <span class="spinner-border text-primary" aria-hidden="true"></span>
+    <span>Checking your session…</span>
+  </div>
+  <div id="app-shell" class="app-shell d-none">
+    <header class="app-topbar">
+      <button id="sidebar-toggle" class="btn btn-outline-secondary d-lg-none" type="button" aria-label="Toggle navigation" aria-controls="sidebar" aria-expanded="false">☰</button>
+      <a class="topbar-brand" href="index.html" aria-label="Veriqra dashboard"><span class="brand-square">V.</span><span>Veriqra</span></a>
+      <span class="topbar-context d-none d-md-inline">QUALITY WORKSPACE</span>
+      <div class="topbar-spacer"></div>
+      <span id="current-user" class="current-user"></span>
+      <button id="logout-button" class="btn btn-outline-secondary btn-sm" type="button">Sign out</button>
+    </header>
+    <div class="app-body">
+      <nav id="sidebar" class="sidebar" aria-label="Primary navigation">
+        <div class="sidebar-heading">WORKSPACE</div>
+        <a class="nav-item active" href="index.html" aria-current="page">◫ <span>Dashboard</span></a>
+        <div class="sidebar-heading mt-4">QUALITY FLOW</div>
+        <span class="nav-item disabled" aria-disabled="true">▤ <span>Requirements</span><small>Later</small></span>
+        <span class="nav-item disabled" aria-disabled="true">◇ <span>Test cases</span><small>Later</small></span>
+        <span class="nav-item disabled" aria-disabled="true">≡ <span>Test plans</span><small>Later</small></span>
+        <span class="nav-item disabled" aria-disabled="true">▷ <span>Runs</span><small>Later</small></span>
+        <span class="nav-item disabled" aria-disabled="true">⌁ <span>Defects</span><small>Later</small></span>
+        <span class="nav-item disabled" aria-disabled="true">⚙ <span>Automation &amp; imports</span><small>Later</small></span>
+        <div class="sidebar-footer">Software Test &amp; Quality Management</div>
+      </nav>
+      <main id="main-content" class="content" tabindex="-1">
+        <div id="page-alert" class="alert alert-danger d-none" role="alert" aria-live="assertive"></div>
+        <div class="page-heading">
+          <div><p class="eyebrow mb-2">OVERVIEW</p><h1>Project dashboard</h1><p class="text-secondary">Your current quality workspace.</p></div>
+          <div class="project-picker"><label for="project-select" class="form-label">Current project</label><select id="project-select" class="form-select" aria-describedby="project-help"><option value="">Loading projects…</option></select><small id="project-help" class="text-secondary">Only projects you can access are listed.</small></div>
+        </div>
+        <section id="empty-projects" class="empty-state d-none" aria-labelledby="empty-title"><div class="empty-icon" aria-hidden="true">◫</div><h2 id="empty-title">No projects available</h2><p>You do not have access to a project yet. Contact your platform administrator.</p></section>
+        <section id="project-dashboard" class="d-none" aria-labelledby="project-title">
+          <div id="project-hero" class="project-hero"><div class="project-monogram" aria-hidden="true">V</div><div class="project-hero-text"><span id="project-key" class="eyebrow"></span><h2 id="project-title"></h2><p id="project-description" class="mb-0"></p></div><span id="project-status" class="status-pill"></span></div>
+          <div class="row g-3 mt-1"><div class="col-md-6"><div class="info-card"><p class="eyebrow">YOUR ACCESS</p><p id="access-summary" class="info-value">Verified project access</p><p class="text-secondary mb-0">The server checks permissions for every request. Project role is not exposed by the current API.</p></div></div><div class="col-md-6"><div class="info-card"><p class="eyebrow">CURRENT ACCOUNT</p><p id="account-name" class="info-value"></p><p class="text-secondary mb-0">Active session confirmed by Veriqra.</p></div></div></div>
+          <div class="section-heading"><h2>Quality workflow</h2><p>Feature pages will be added in the next frontend rounds.</p></div>
+          <div id="workflow" class="workflow-grid" aria-label="Upcoming workflow pages"></div>
+        </section>
+      </main>
+    </div>
+  </div>
+</body>
+</html>

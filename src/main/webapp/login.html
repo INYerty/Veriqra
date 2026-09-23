@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sign in · Veriqra</title>
+  <link rel="stylesheet" href="assets/vendor/bootstrap-5.3.8.min.css">
+  <link rel="stylesheet" href="assets/css/app.css">
+  <script defer src="assets/vendor/jquery-3.7.1.min.js"></script>
+  <script defer src="assets/js/api.js"></script>
+  <script defer src="assets/js/login.js"></script>
+</head>
+<body class="login-page">
+  <main class="login-layout container-fluid">
+    <section class="login-intro" aria-label="About Veriqra">
+      <div class="brand-mark" aria-hidden="true">V<span>.</span></div>
+      <p class="eyebrow">QUALITY WORKSPACE</p>
+      <h1>Make quality<br><span>traceable.</span></h1>
+      <p class="intro-copy">Requirements, test execution, and defects in one connected workspace.</p>
+      <div class="intro-rule"></div>
+      <p class="intro-caption">Veriqra · Software Test &amp; Quality Management Platform</p>
+    </section>
+    <section class="login-panel" aria-labelledby="login-title">
+      <div class="login-card">
+        <p class="eyebrow">WELCOME BACK</p>
+        <h2 id="login-title">Sign in to Veriqra</h2>
+        <p class="text-secondary mb-4">Enter your account details to continue.</p>
+        <form id="login-form" novalidate>
+          <div class="mb-3">
+            <label class="form-label" for="username">Username</label>
+            <input class="form-control form-control-lg" id="username" name="username" autocomplete="username" maxlength="64" required autofocus>
+          </div>
+          <div class="mb-3">
+            <label class="form-label" for="password">Password</label>
+            <input class="form-control form-control-lg" id="password" name="password" type="password" autocomplete="current-password" required>
+          </div>
+          <p id="login-error" class="alert alert-danger d-none" role="alert" aria-live="assertive"></p>
+          <button id="login-submit" class="btn btn-primary btn-lg w-100" type="submit">
+            <span class="button-label">Sign in</span>
+            <span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
+          </button>
+        </form>
+        <p class="login-footnote">Access is managed by your platform administrator.</p>
+      </div>
+    </section>
+  </main>
+</body>
+</html>
