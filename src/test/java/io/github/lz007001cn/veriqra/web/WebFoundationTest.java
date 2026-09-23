@@ -63,7 +63,9 @@ class WebFoundationTest {
                 proxy(TestPlanService.class, (o, m, a) -> { throw new AssertionError("Unexpected plan call"); }),
                 WebFoundationTest.proxy(TestRunService.class, (o,m,a) -> { throw new AssertionError("Unexpected Round 3 call"); }),
                 WebFoundationTest.proxy(TestExecutionService.class, (o,m,a) -> { throw new AssertionError("Unexpected Round 3 call"); }),
-                WebFoundationTest.proxy(DefectService.class, (o,m,a) -> { throw new AssertionError("Unexpected Round 3 call"); })));
+                WebFoundationTest.proxy(DefectService.class, (o,m,a) -> { throw new AssertionError("Unexpected Round 3 call"); }),
+                WebFoundationTest.proxy(AutomationService.class, (o,m,a) -> { throw new AssertionError("Unexpected Round 4 call"); }),
+                WebFoundationTest.proxy(TestImportService.class, (o,m,a) -> { throw new AssertionError("Unexpected Round 4 call"); })));
         client = HttpClient.newHttpClient();
     }
     @AfterAll void stop() throws Exception { if (server != null) server.close(); }

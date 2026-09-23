@@ -27,7 +27,8 @@ class PublicSecurityWebTest {
         };
         var services=new WebServices(auth,unused(ProjectService.class),unused(RequirementService.class),unused(TestCaseService.class),
                 unused(TraceabilityService.class),unused(TestPlanService.class),unused(TestRunService.class),
-                unused(TestExecutionService.class),unused(DefectService.class));
+                unused(TestExecutionService.class),unused(DefectService.class),unused(AutomationService.class),
+                unused(TestImportService.class));
         server=new EmbeddedWebServer(dir.resolve("local"),services);
         secureServer=new EmbeddedWebServer(dir.resolve("secure"),services,true);
         rootServer=new EmbeddedWebServer(dir.resolve("root"),services,false, "");
@@ -72,7 +73,9 @@ class PublicSecurityWebTest {
                 "/projects/1/test-plans/1/test-cases/1/remove","/projects/1/runs","/projects/1/runs/1/complete","/projects/1/runs/1/cancel",
                 "/projects/1/runs/1/cases/1/attempts","/projects/1/defects","/projects/1/defects/1",
                 "/projects/1/defects/1/start","/projects/1/defects/1/resolve","/projects/1/defects/1/close",
-                "/projects/1/defects/1/reopen","/projects/1/defects/1/evidence","/projects/1/defects/1/evidence/1/remove")) {
+                "/projects/1/defects/1/reopen","/projects/1/defects/1/evidence","/projects/1/defects/1/evidence/1/remove",
+                "/projects/1/automation/identities","/automation/identities/1/mapping",
+                "/automation/identities/1/mapping/deactivate","/projects/1/imports/preview","/projects/1/imports")) {
             for(String method:List.of("POST","PUT","PATCH","DELETE"))
                 assertEquals(403,send(server,method,path,"{}","https://evil.example",true,cookie).statusCode(),path);
         }

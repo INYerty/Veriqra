@@ -59,7 +59,8 @@ class ExecutionWebTest {
             };
         });
         server=new EmbeddedWebServer(directory,new WebServices(auth,unused(ProjectService.class),unused(RequirementService.class),
-                unused(TestCaseService.class),unused(TraceabilityService.class),unused(TestPlanService.class),runs,execution,defects));
+                unused(TestCaseService.class),unused(TraceabilityService.class),unused(TestPlanService.class),runs,execution,defects,
+                unused(AutomationService.class), unused(TestImportService.class)));
         client=HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
     }
     static <T> T unused(Class<T> type){return WebFoundationTest.proxy(type,(o,m,a)->{throw new AssertionError("Unexpected Service");});}

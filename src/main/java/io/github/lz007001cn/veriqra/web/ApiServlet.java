@@ -52,7 +52,14 @@ public final class ApiServlet extends HttpServlet {
                     JsonHttp.write(response, 201, ProjectResponse.from(project));
                 }
             }
-            default -> projectRoute(request, response, services, path, method);
+            default -> {
+                String[] parts = path.split("/", -1);
+                if (parts.length >= 4 && parts[1].equals("automation") && parts[2].equals("identities")) {
+                    AutomationHandler.handle(request, response, services, SessionIdentity.require(request), parts);
+                } else {
+                    projectRoute(request, response, services, path, method);
+                }
+            }
         }
     }
 
@@ -73,6 +80,8 @@ public final class ApiServlet extends HttpServlet {
                 case "requirements" -> RequirementHandler.handle(request, response, services, actor, projectId, parts);
                 case "test-cases" -> TestCaseHandler.handle(request, response, services, actor, projectId, parts);
                 case "test-plans" -> TestPlanHandler.handle(request, response, services, actor, projectId, parts);
+                case "automation" -> AutomationHandler.handleProject(request, response, services, actor, projectId, parts);
+                case "imports" -> TestImportHandler.handle(request, response, services, actor, projectId, parts);
                 default -> throw new HttpFailure(404, "NOT_FOUND", "Resource not found");
             }
             return;

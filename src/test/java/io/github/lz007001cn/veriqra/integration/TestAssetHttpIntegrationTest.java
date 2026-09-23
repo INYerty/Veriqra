@@ -45,7 +45,10 @@ class TestAssetHttpIntegrationTest extends MysqlFixture {
                 new DefaultTestPlanService(transactions, daos, access),
                 new DefaultTestRunService(transactions, daos, access, Clock.systemUTC()),
                 new DefaultTestExecutionService(transactions, daos, access, Clock.systemUTC()),
-                new DefaultDefectService(transactions, daos, access)), false, "");
+                new DefaultDefectService(transactions, daos, access),
+                new DefaultAutomationService(transactions, daos, access),
+                new DefaultTestImportService(transactions, daos, access,
+                        new io.github.lz007001cn.veriqra.service.importing.JUnitXmlParser(), Clock.systemUTC())), false, "");
         client = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
         byte[] salt = new byte[16]; new java.security.SecureRandom().nextBytes(salt);
         PBEKeySpec spec = new PBEKeySpec("asset-test-password".toCharArray(),salt,600000,256);

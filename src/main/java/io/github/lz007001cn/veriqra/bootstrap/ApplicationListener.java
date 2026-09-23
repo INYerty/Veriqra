@@ -4,6 +4,7 @@ import io.github.lz007001cn.veriqra.config.DatabaseConfig;
 import io.github.lz007001cn.veriqra.jdbc.*;
 import io.github.lz007001cn.veriqra.service.*;
 import io.github.lz007001cn.veriqra.service.auth.PasswordVerifier;
+import io.github.lz007001cn.veriqra.service.importing.JUnitXmlParser;
 import io.github.lz007001cn.veriqra.service.support.*;
 import io.github.lz007001cn.veriqra.web.WebServices;
 import jakarta.servlet.*;
@@ -44,7 +45,10 @@ public final class ApplicationListener implements ServletContextListener {
                     new DefaultTestPlanService(transactions, daos, access),
                     new DefaultTestRunService(transactions, daos, access, java.time.Clock.systemUTC()),
                     new DefaultTestExecutionService(transactions, daos, access, java.time.Clock.systemUTC()),
-                    new DefaultDefectService(transactions, daos, access)));
+                    new DefaultDefectService(transactions, daos, access),
+                    new DefaultAutomationService(transactions, daos, access),
+                    new DefaultTestImportService(transactions, daos, access, new JUnitXmlParser(),
+                            java.time.Clock.systemUTC())));
         } catch (SQLException | ClassNotFoundException | RuntimeException e) {
             closePool(context);
             // Configuration/driver exceptions may contain credentials; do not attach them to container logs.
