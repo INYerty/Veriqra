@@ -10,6 +10,7 @@
   <script defer src="assets/vendor/bootstrap-5.3.8.bundle.min.js"></script>
   <script defer src="assets/js/api.js"></script>
   <script defer src="assets/js/app.js"></script>
+  <script defer src="assets/js/test-assets.js"></script>
 </head>
 <body class="app-page">
   <div id="bootstrap-screen" class="bootstrap-screen" role="status" aria-live="polite">
@@ -28,10 +29,10 @@
     <div class="app-body">
       <nav id="sidebar" class="sidebar" aria-label="Primary navigation">
         <div class="sidebar-heading">WORKSPACE</div>
-        <a class="nav-item active" href="index.html" aria-current="page">◫ <span>Dashboard</span></a>
+        <a class="nav-item active" href="#dashboard" data-view="dashboard" aria-current="page">◫ <span>Dashboard</span></a>
         <div class="sidebar-heading mt-4">QUALITY FLOW</div>
-        <span class="nav-item disabled" aria-disabled="true">▤ <span>Requirements</span><small>Later</small></span>
-        <span class="nav-item disabled" aria-disabled="true">◇ <span>Test cases</span><small>Later</small></span>
+        <a class="nav-item" href="#requirements" data-view="requirements">▤ <span>Requirements</span></a>
+        <a class="nav-item" href="#test-cases" data-view="test-cases">◇ <span>Test cases</span></a>
         <span class="nav-item disabled" aria-disabled="true">≡ <span>Test plans</span><small>Later</small></span>
         <span class="nav-item disabled" aria-disabled="true">▷ <span>Runs</span><small>Later</small></span>
         <span class="nav-item disabled" aria-disabled="true">⌁ <span>Defects</span><small>Later</small></span>
@@ -41,7 +42,7 @@
       <main id="main-content" class="content" tabindex="-1">
         <div id="page-alert" class="alert alert-danger d-none" role="alert" aria-live="assertive"></div>
         <div class="page-heading">
-          <div><p class="eyebrow mb-2">OVERVIEW</p><h1>Project dashboard</h1><p class="text-secondary">Your current quality workspace.</p></div>
+          <div><p id="view-eyebrow" class="eyebrow mb-2">OVERVIEW</p><h1 id="view-title">Project dashboard</h1><p id="view-description" class="text-secondary">Your current quality workspace.</p></div>
           <div class="project-picker"><label for="project-select" class="form-label">Current project</label><select id="project-select" class="form-select" aria-describedby="project-help"><option value="">Loading projects…</option></select><small id="project-help" class="text-secondary">Only projects you can access are listed.</small></div>
         </div>
         <section id="empty-projects" class="empty-state d-none" aria-labelledby="empty-title"><div class="empty-icon" aria-hidden="true">◫</div><h2 id="empty-title">No projects available</h2><p>You do not have access to a project yet. Contact your platform administrator.</p></section>
@@ -50,6 +51,31 @@
           <div class="row g-3 mt-1"><div class="col-md-6"><div class="info-card"><p class="eyebrow">YOUR ACCESS</p><p id="access-summary" class="info-value">Verified project access</p><p class="text-secondary mb-0">The server checks permissions for every request. Project role is not exposed by the current API.</p></div></div><div class="col-md-6"><div class="info-card"><p class="eyebrow">CURRENT ACCOUNT</p><p id="account-name" class="info-value"></p><p class="text-secondary mb-0">Active session confirmed by Veriqra.</p></div></div></div>
           <div class="section-heading"><h2>Quality workflow</h2><p>Feature pages will be added in the next frontend rounds.</p></div>
           <div id="workflow" class="workflow-grid" aria-label="Upcoming workflow pages"></div>
+        </section>
+        <section id="asset-workspace" class="d-none" aria-label="Test assets">
+          <div id="asset-notice" class="alert d-none" role="status" aria-live="polite"></div>
+          <div id="asset-list-panel" class="asset-panel">
+            <div class="asset-panel-heading"><h2 id="asset-list-title">Assets</h2><button id="asset-new" class="btn btn-primary" type="button">Create</button></div>
+            <p id="asset-list-status" class="text-secondary" role="status" aria-live="polite"></p>
+            <div id="asset-list" class="asset-list"></div>
+          </div>
+          <div id="asset-detail-panel" class="asset-panel d-none">
+            <div class="asset-panel-heading"><h2 id="asset-detail-title"></h2><div class="d-flex gap-2"><button id="asset-back" class="btn btn-outline-secondary" type="button">Back to list</button><button id="asset-edit" class="btn btn-primary" type="button">Edit</button></div></div>
+            <div id="asset-detail" class="asset-detail"></div>
+            <div id="asset-steps-section" class="d-none"><h3>Steps</h3><div id="asset-steps"></div></div>
+            <div id="asset-trace-section"><div class="asset-panel-heading"><h3>Traceability</h3><button id="trace-add-button" class="btn btn-outline-primary btn-sm" type="button">Link item</button></div><p id="trace-help" class="text-secondary small"></p><div id="asset-traces"></div>
+              <form id="trace-form" class="d-none" novalidate><label id="trace-target-label" for="trace-target" class="form-label">Link to</label><div class="d-flex flex-wrap gap-2"><select id="trace-target" class="form-select asset-link-select" required></select><button id="trace-submit" type="submit" class="btn btn-primary">Link</button><button id="trace-cancel" type="button" class="btn btn-outline-secondary">Cancel</button></div></form>
+            </div>
+          </div>
+          <form id="asset-form" class="asset-panel d-none" novalidate>
+            <div class="asset-panel-heading"><h2 id="asset-form-title">Create</h2><button id="asset-form-cancel" class="btn btn-outline-secondary" type="button">Cancel</button></div>
+            <div id="asset-form-error" class="alert alert-danger d-none" role="alert" aria-live="assertive"></div>
+            <div class="mb-3"><label for="asset-title" class="form-label">Title <span aria-hidden="true">*</span></label><input id="asset-title" class="form-control" maxlength="240" required aria-required="true"></div>
+            <div class="mb-3"><label for="asset-description" class="form-label">Description</label><textarea id="asset-description" class="form-control" rows="3"></textarea></div>
+            <div class="row g-3 mb-3"><div class="col-sm-6"><label for="asset-priority" class="form-label">Priority <span aria-hidden="true">*</span></label><select id="asset-priority" class="form-select" required><option value="LOW">Low</option><option value="MEDIUM">Medium</option><option value="HIGH">High</option></select></div><div id="asset-status-wrap" class="col-sm-6 d-none"><label for="asset-status" class="form-label">Status</label><select id="asset-status" class="form-select"></select></div></div>
+            <div id="asset-case-fields" class="d-none"><div class="mb-3"><label for="asset-preconditions" class="form-label">Preconditions</label><textarea id="asset-preconditions" class="form-control" rows="2"></textarea></div><div class="asset-panel-heading"><h3>Test steps</h3><button id="step-add" class="btn btn-outline-primary btn-sm" type="button">Add step</button></div><p class="text-secondary small">Steps are saved together with the test case. Order starts at 1.</p><div id="step-editor"></div></div>
+            <button id="asset-save" class="btn btn-primary" type="submit">Save</button>
+          </form>
         </section>
       </main>
     </div>

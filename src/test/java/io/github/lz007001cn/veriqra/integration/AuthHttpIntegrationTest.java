@@ -177,7 +177,7 @@ class AuthHttpIntegrationTest extends MysqlFixture {
 
     void assertFrontendResources(String baseUrl) throws Exception {
         for (String path : List.of("/", "/login.html", "/index.html", "/assets/css/app.css",
-                "/assets/js/api.js", "/assets/js/login.js", "/assets/js/app.js",
+                "/assets/js/api.js", "/assets/js/login.js", "/assets/js/app.js", "/assets/js/test-assets.js",
                 "/assets/vendor/jquery-3.7.1.min.js", "/assets/vendor/bootstrap-5.3.8.min.css",
                 "/assets/vendor/bootstrap-5.3.8.bundle.min.js")) {
             var result = client.send(HttpRequest.newBuilder(URI.create(baseUrl + path)).GET().build(),
@@ -201,6 +201,18 @@ class AuthHttpIntegrationTest extends MysqlFixture {
         assertTrue(apiJs.contains("'X-Veriqra-Request': '1'"));
         assertTrue(apiJs.contains("new URL('api/'"));
         assertFalse(apiJs.contains("'/api/"));
+        var page = client.send(HttpRequest.newBuilder(URI.create(baseUrl + "/index.html")).GET().build(),
+                HttpResponse.BodyHandlers.ofString()).body();
+        assertTrue(page.contains("assets/js/test-assets.js"));
+        assertTrue(page.contains("data-view=\"requirements\""));
+        assertTrue(page.contains("data-view=\"test-cases\""));
+        var assetsJs = client.send(HttpRequest.newBuilder(URI.create(baseUrl + "/assets/js/test-assets.js")).GET().build(),
+                HttpResponse.BodyHandlers.ofString()).body();
+        assertTrue(assetsJs.contains("window.VeriqraApi"));
+        assertFalse(assetsJs.contains("'/api/"));
+        assertFalse(assetsJs.contains("'/veriqra"));
+        assertFalse(assetsJs.contains("innerHTML"));
+        assertFalse(assetsJs.contains(".html("));
     }
 
     @Test void realProjectRequirementValidationAndCurrentMembership() throws Exception {

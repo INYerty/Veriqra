@@ -127,6 +127,29 @@ class TestAssetHttpIntegrationTest extends MysqlFixture {
         return expect(200,"GET",base(p)+"/requirements/"+r+"/test-cases",null).get(0).get("status").asText();
     }
 
+    @Test void caseSideTraceabilityCanBeReadFromScopedRequirementLists() throws Exception {
+        login(admin);
+        long p=project("REVERSE");
+        long first=requirement(p).get("id").asLong();
+        long second=requirement(p).get("id").asLong();
+        long c=testCase(p).get("id").asLong();
+        expect(204,"POST",link(p,first,c),"{}");
+        expect(204,"POST",link(p,second,c),"{}");
+        expect(204,"POST",link(p,first,c)+"/confirm","{}");
+        expect(204,"POST",link(p,second,c)+"/remove","{}");
+        var requirements=expect(200,"GET",base(p)+"/requirements",null);
+        assertEquals(2,requirements.size());
+        Map<Long,String> byRequirement=new HashMap<>();
+        for (var requirement:requirements) {
+            long requirementId=requirement.get("id").asLong();
+            for (var association:expect(200,"GET",base(p)+"/requirements/"+requirementId+"/test-cases",null)) {
+                if (association.get("testCase").get("id").asLong()==c)
+                    byRequirement.put(requirementId,association.get("status").asText());
+            }
+        }
+        assertEquals(Map.of(first,"CONFIRMED",second,"REMOVED"),byRequirement);
+    }
+
     @Test void completeHttpAssetWorkflowPersistsReadyPlanAndConfirmedLink() throws Exception {
         login(admin);long p=project("CHAIN");
         long r=requirement(p).get("id").asLong();

@@ -10,21 +10,40 @@
   let currentUser = null;
   let projects = [];
   let selectedId = null;
+  let currentView = 'dashboard';
+
+  function announce(name, detail) { document.dispatchEvent(new CustomEvent('veriqra:' + name, { detail: detail })); }
+  function setView(view) {
+    currentView = ['dashboard', 'requirements', 'test-cases'].includes(view) ? view : 'dashboard';
+    $('[data-view]').removeClass('active').removeAttr('aria-current');
+    $('[data-view="' + currentView + '"]').addClass('active').attr('aria-current', 'page');
+    const labels = { dashboard: ['OVERVIEW', 'Project dashboard', 'Your current quality workspace.'], requirements: ['TEST ASSETS', 'Requirements', 'Manage requirements and their test coverage.'], 'test-cases': ['TEST ASSETS', 'Test cases', 'Maintain current test definitions and steps.'] };
+    $('#view-eyebrow').text(labels[currentView][0]);
+    $('#view-title').text(labels[currentView][1]);
+    $('#view-description').text(labels[currentView][2]);
+    $('#project-dashboard').toggleClass('d-none', currentView !== 'dashboard' || !selectedId);
+    $('#asset-workspace').toggleClass('d-none', currentView === 'dashboard' || !selectedId);
+    $('#sidebar').removeClass('open');
+    $('#sidebar-toggle').attr('aria-expanded', 'false');
+    announce('view', { view: currentView, projectId: selectedId });
+  }
 
   function savedProject() { try { return sessionStorage.getItem(projectStorageKey); } catch (_) { return null; } }
   function rememberProject(id) { try { if (id) sessionStorage.setItem(projectStorageKey, id); else sessionStorage.removeItem(projectStorageKey); } catch (_) { /* Optional UI preference. */ } }
   function feedback(message) { alert.text(message || '').toggleClass('d-none', !message); }
   function showShell() { splash.addClass('d-none'); shell.removeClass('d-none'); }
   function clearProjectContext() {
+    announce('project', { project: null });
     projects = [];
     selectedId = null;
     picker.empty().append($('<option>').val('').text('Loading projects…')).prop('disabled', true);
-    $('#project-dashboard, #empty-projects').addClass('d-none');
+    $('#project-dashboard, #empty-projects, #asset-workspace').addClass('d-none');
     $('#project-key, #project-title, #project-description, #project-status, #account-name').text('');
   }
   function showProject(project) {
     $('#empty-projects').addClass('d-none');
-    $('#project-dashboard').removeClass('d-none');
+    $('#project-dashboard').toggleClass('d-none', currentView !== 'dashboard');
+    $('#asset-workspace').toggleClass('d-none', currentView === 'dashboard');
     $('#project-title').text(project.name);
     $('#project-key').text(project.projectKey);
     $('#project-description').text(project.description || 'No project description has been added.');
@@ -38,6 +57,9 @@
     if (!projects.some(function (p) { return String(p.id) === String(id); })) return;
     if (selecting) return;
     selecting = true;
+    selectedId = null;
+    announce('project', { project: null });
+    $('#project-dashboard, #asset-workspace').addClass('d-none');
     picker.prop('disabled', true);
     feedback('');
     api.get('projects/' + encodeURIComponent(id))
@@ -46,9 +68,10 @@
         picker.val(selectedId);
         rememberProject(selectedId);
         showProject(project);
+        announce('project', { project: project });
       })
       .fail(function (failure) {
-        picker.val(selectedId || '');
+        picker.val('');
         feedback(failure.message);
         if ([403, 404].includes(failure.status)) {
           rememberProject(null);
@@ -66,9 +89,10 @@
         picker.empty();
         if (!rows.length) {
           selectedId = null;
+          announce('project', { project: null });
           rememberProject(null);
           picker.append($('<option>').val('').text('No projects available'));
-          $('#project-dashboard').addClass('d-none');
+          $('#project-dashboard, #asset-workspace').addClass('d-none');
           $('#empty-projects').removeClass('d-none');
           return;
         }
@@ -89,6 +113,7 @@
     splash.removeClass('d-none');
     clearProjectContext();
     feedback('');
+    setView(location.hash.slice(1));
     api.get('auth/me')
       .done(function (user) {
         currentUser = user;
@@ -106,6 +131,10 @@
   }
 
   picker.on('change', function () { chooseProject(this.value); });
+  $('a[data-view]').on('click', function () {
+    if (location.hash === this.hash) setView(this.hash.slice(1));
+  });
+  $(window).on('hashchange', function () { setView(location.hash.slice(1)); });
   $('#logout-button').on('click', function () {
     const button = $(this);
     if (button.prop('disabled')) return;
@@ -116,6 +145,7 @@
         projects = [];
         selectedId = null;
         rememberProject(null);
+        announce('project', { project: null });
         shell.addClass('d-none');
         api.signIn();
       })
@@ -130,7 +160,7 @@
     const card = $('<div class="workflow-card">');
     card.append($('<span class="workflow-number">').text(String(index + 1).padStart(2, '0')));
     card.append($('<strong>').text(name));
-    card.append($('<span class="workflow-later">').text('UI coming later'));
+    card.append($('<span class="workflow-later">').text(index < 2 ? 'Available in the sidebar' : 'UI coming later'));
     $('#workflow').append(card);
   });
   // pageshow also runs when navigating Back to a page restored from the back/forward cache.
@@ -141,5 +171,6 @@
     // Prevent a back/forward cache snapshot from displaying old project data before revalidation.
     shell.addClass('d-none');
     splash.removeClass('d-none');
+    announce('project', { project: null });
   });
 })(jQuery, window.VeriqraApi);
