@@ -97,7 +97,11 @@ class AutomationImportHttpIntegrationTest extends MysqlFixture {
         assertFalse(preview.get("readyToImport").asBoolean());
         assertEquals("unknown", preview.at("/unknownIdentities/0/externalKey").asText());
         assertEquals(0, rowCount("test_automation_identities"));
+        assertEquals(0, rowCount("test_automation_mappings"));
+        assertEquals(0, rowCount("test_cases"));
         assertEquals(0, rowCount("test_runs"));
+        assertEquals(0, rowCount("test_run_cases"));
+        assertEquals(0, rowCount("test_attempts"));
         assertEquals(0, rowCount("test_imports"));
 
         login(tester);
@@ -299,8 +303,10 @@ class AutomationImportHttpIntegrationTest extends MysqlFixture {
     }
 
     private long rowCount(String table) {
-        if (!Set.of("test_automation_identities", "test_runs", "test_imports", "test_attempts",
-                "test_run_cases").contains(table)) throw new IllegalArgumentException("Unexpected table");
+        if (!Set.of("test_automation_identities", "test_automation_mappings", "test_cases",
+                "test_runs", "test_imports", "test_attempts", "test_run_cases").contains(table)) {
+            throw new IllegalArgumentException("Unexpected table");
+        }
         return tx.inTransaction(connection -> {
             try (var statement = connection.createStatement(); var result = statement.executeQuery("SELECT COUNT(*) FROM " + table)) {
                 result.next();

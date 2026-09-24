@@ -12,6 +12,8 @@
   <script defer src="assets/js/app.js"></script>
   <script defer src="assets/js/test-assets.js"></script>
   <script defer src="assets/js/execution.js"></script>
+  <script defer src="assets/js/defects.js"></script>
+  <script defer src="assets/js/automation-imports.js"></script>
 </head>
 <body class="app-page">
   <div id="bootstrap-screen" class="bootstrap-screen" role="status" aria-live="polite">
@@ -36,8 +38,8 @@
         <a class="nav-item" href="#test-cases" data-view="test-cases">◇ <span>Test cases</span></a>
         <a class="nav-item" href="#test-plans" data-view="test-plans">≡ <span>Test plans</span></a>
         <a class="nav-item" href="#runs" data-view="runs">▷ <span>Runs</span></a>
-        <span class="nav-item disabled" aria-disabled="true">⌁ <span>Defects</span><small>Later</small></span>
-        <span class="nav-item disabled" aria-disabled="true">⚙ <span>Automation &amp; imports</span><small>Later</small></span>
+        <a class="nav-item" href="#defects" data-view="defects">⌁ <span>Defects</span></a>
+        <a class="nav-item" href="#automation" data-view="automation">⚙ <span>Automation &amp; imports</span></a>
         <div class="sidebar-footer">Software Test &amp; Quality Management</div>
       </nav>
       <main id="main-content" class="content" tabindex="-1">
@@ -118,6 +120,73 @@
               <div id="execution-failure-wrap" class="mb-3 d-none"><label for="execution-failure" class="form-label">Failure message</label><textarea id="execution-failure" class="form-control" rows="2"></textarea></div>
               <button id="execution-submit" class="btn btn-primary" type="submit">Record new attempt</button>
             </form>
+          </section>
+        </section>
+        <section id="defect-workspace" class="d-none" aria-label="Defects">
+          <div id="defect-notice" class="alert d-none" role="status" aria-live="polite"></div>
+          <div id="defect-list-panel" class="asset-panel">
+            <div class="asset-panel-heading"><h2>Defects</h2><button id="defect-new" class="btn btn-primary" type="button">Create from FAIL attempt</button></div>
+            <p id="defect-list-status" role="status" aria-live="polite"></p><div id="defect-list"></div>
+          </div>
+          <div id="defect-detail-panel" class="asset-panel d-none">
+            <div class="asset-panel-heading"><h2 id="defect-detail-title"></h2><button id="defect-back" class="btn btn-outline-secondary" type="button">Back to defects</button></div>
+            <div id="defect-detail"></div>
+            <h3 class="fs-5 mt-4">Failure evidence and retests</h3>
+            <p class="text-secondary small">Evidence links point to FAIL attempts. Retests remain in the original Run Case history; Close is decided by the server.</p>
+            <p id="defect-evidence-status" role="status" aria-live="polite"></p><div id="defect-evidence"></div>
+            <div id="defect-actions" class="step-actions"></div>
+            <div id="defect-action-status" class="alert d-none mt-3" role="status" aria-live="polite"></div>
+            <form id="defect-action-form" class="mt-4 d-none" novalidate>
+              <h3 id="defect-action-title" class="fs-5"></h3>
+              <p id="defect-action-help" class="text-secondary small"></p>
+              <div id="defect-action-error" class="alert alert-danger d-none" role="alert" aria-live="assertive"></div>
+              <div id="defect-resolution-wrap" class="mb-3 d-none"><label for="defect-resolution" class="form-label">Resolution note</label><textarea id="defect-resolution" class="form-control" rows="3"></textarea></div>
+              <div id="defect-action-assignee-wrap" class="mb-3 d-none"><label for="defect-action-assignee" class="form-label">Assignee user ID (active Developer or Admin)</label><input id="defect-action-assignee" class="form-control" type="number" min="1" step="1"></div>
+              <div id="defect-action-evidence" class="d-none">
+                <label for="defect-action-run" class="form-label">Run with failure</label><select id="defect-action-run" class="form-select mb-2"></select>
+                <label for="defect-action-case" class="form-label">Run Case snapshot</label><select id="defect-action-case" class="form-select mb-2"></select>
+                <label for="defect-action-attempt" class="form-label">FAIL attempt</label><select id="defect-action-attempt" class="form-select mb-3"></select>
+              </div>
+              <div class="d-flex flex-wrap gap-2"><button id="defect-action-submit" class="btn btn-primary" type="submit">Confirm</button><button id="defect-action-cancel" class="btn btn-outline-secondary" type="button">Cancel</button></div>
+            </form>
+          </div>
+          <form id="defect-create-form" class="asset-panel d-none" novalidate>
+            <div class="asset-panel-heading"><h2>Create defect</h2><button id="defect-create-cancel" class="btn btn-outline-secondary" type="button">Cancel</button></div>
+            <p class="text-secondary small">A defect requires an existing FAIL attempt in this project. Selecting evidence never edits the attempt.</p>
+            <div id="defect-create-error" class="alert alert-danger d-none" role="alert" aria-live="assertive"></div>
+            <div class="mb-3"><label for="defect-create-run" class="form-label">Run with failure</label><select id="defect-create-run" class="form-select" required></select></div>
+            <div class="mb-3"><label for="defect-create-case" class="form-label">Run Case snapshot</label><select id="defect-create-case" class="form-select" required></select></div>
+            <div class="mb-3"><label for="defect-create-attempt" class="form-label">FAIL attempt</label><select id="defect-create-attempt" class="form-select" required></select></div>
+            <div class="mb-3"><label for="defect-create-title" class="form-label">Title</label><input id="defect-create-title" class="form-control" maxlength="240" required></div>
+            <div class="mb-3"><label for="defect-create-description" class="form-label">Description</label><textarea id="defect-create-description" class="form-control" rows="3"></textarea></div>
+            <div class="row g-3 mb-3"><div class="col-sm-6"><label for="defect-create-severity" class="form-label">Severity</label><select id="defect-create-severity" class="form-select"><option>LOW</option><option>MEDIUM</option><option>HIGH</option><option>CRITICAL</option></select></div><div class="col-sm-6"><label for="defect-create-priority" class="form-label">Priority</label><select id="defect-create-priority" class="form-select"><option>LOW</option><option>MEDIUM</option><option>HIGH</option></select></div></div>
+            <div class="mb-3"><label for="defect-create-assignee" class="form-label">Assignee user ID (optional; active Developer or Admin)</label><input id="defect-create-assignee" class="form-control" type="number" min="1" step="1"></div>
+            <button id="defect-create-submit" class="btn btn-primary" type="submit">Create defect</button>
+          </form>
+        </section>
+        <section id="automation-workspace" class="d-none" aria-label="Automation and JUnit imports">
+          <div id="automation-notice" class="alert d-none" role="status" aria-live="polite"></div>
+          <section class="asset-panel" aria-label="Automation identities and mappings">
+            <div class="asset-panel-heading"><h2>Automation identities &amp; mappings</h2><button id="automation-refresh" class="btn btn-outline-secondary" type="button">Refresh</button></div>
+            <p class="text-secondary small">An external JUnit identity becomes a TestCase association only after you confirm its mapping.</p>
+            <form id="automation-register" class="row g-2 align-items-end mb-4" novalidate>
+              <div class="col-lg-4"><label for="automation-namespace" class="form-label">JUnit namespace / classname</label><input id="automation-namespace" class="form-control" maxlength="128" required></div>
+              <div class="col-lg-4"><label for="automation-key" class="form-label">External test name</label><input id="automation-key" class="form-control" maxlength="512" required></div>
+              <div class="col-lg-4"><button id="automation-register-submit" class="btn btn-primary" type="submit">Register JUnit identity</button></div>
+            </form>
+            <p id="automation-status" role="status" aria-live="polite"></p><div id="automation-identities"></div>
+          </section>
+          <section class="asset-panel" aria-label="JUnit XML preview and import">
+            <h2 class="fs-5">JUnit XML preview &amp; import</h2>
+            <p class="text-secondary small">Preview is read-only. Formal import requires every identity to have a confirmed active mapping to a READY TestCase.</p>
+            <form id="import-form" novalidate>
+              <div class="row g-3 mb-3"><div class="col-md-6"><label for="import-namespace" class="form-label">Source namespace / classname</label><input id="import-namespace" class="form-control" maxlength="128" required></div><div class="col-md-6"><label for="import-file" class="form-label">JUnit XML file (up to 5 MiB)</label><input id="import-file" class="form-control" type="file" accept=".xml,application/xml" required></div></div>
+              <p id="import-file-status" class="text-secondary small" role="status" aria-live="polite">No XML file selected.</p>
+              <div class="row g-3 mb-3"><div class="col-md-6"><label for="import-run-name" class="form-label">Imported Run name</label><input id="import-run-name" class="form-control" maxlength="160" required></div><div class="col-md-3"><label for="import-environment" class="form-label">Environment (optional)</label><input id="import-environment" class="form-control" maxlength="160"></div><div class="col-md-3"><label for="import-build" class="form-label">Build version (optional)</label><input id="import-build" class="form-control" maxlength="80"></div></div>
+              <div class="d-flex flex-wrap gap-2"><button id="import-preview-button" class="btn btn-outline-primary" type="button">Preview XML</button><button id="import-submit" class="btn btn-primary" type="submit" disabled>Import mapped results</button></div>
+            </form>
+            <p id="import-status" class="mt-3" role="status" aria-live="polite"></p>
+            <div id="import-preview" class="mt-3"></div><div id="import-result" class="mt-3"></div>
           </section>
         </section>
       </main>

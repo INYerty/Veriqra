@@ -230,6 +230,13 @@
           $('<dl class="asset-fields mb-0">').append(field('Executed', date(attempt.executedAt)), field('Actor ID', attempt.executedBy),
             field('Duration (ms)', attempt.durationMs), field('Actual result / comment', attempt.comment), field('Failure message', attempt.failureMessage)));
         target.append(card);
+        if (attempt.outcome === 'FAIL') card.append($('<button type="button" class="btn btn-outline-danger btn-sm mt-2">')
+          .text('Create defect from this FAIL').on('click', function () {
+            document.dispatchEvent(new CustomEvent('veriqra:failure-evidence', { detail: {
+              projectId: projectId, runId: runId, runCaseId: id, attemptId: attempt.id
+            } }));
+            location.hash = '#defects';
+          }));
       });
       $('#execution-attempt-form').toggleClass('d-none', current.run.status !== 'IN_PROGRESS');
       $('#execution-attempt-form')[0].reset();
@@ -288,6 +295,22 @@
     const next = event.originalEvent.detail.view;
     if (next !== view) { reset(); view = next; }
     if (projectId && active()) list();
+  });
+  let requestedRun = null;
+  $(document).on('veriqra:open-run', function (event) {
+    const request = event.originalEvent.detail;
+    if (projectId && String(request.projectId) === projectId) requestedRun = request;
+  });
+  $(document).on('veriqra:project', function (event) {
+    const next = event.originalEvent.detail.project;
+    if (!next || !projectId || String(next.id) !== projectId) requestedRun = null;
+  });
+  $(document).on('veriqra:view', function (event) {
+    if (event.originalEvent.detail.view !== 'runs' || !requestedRun || !projectId) return;
+    if (String(requestedRun.projectId) !== projectId) { requestedRun = null; return; }
+    const id = requestedRun.runId;
+    requestedRun = null;
+    openDetail(id);
   });
   $('#execution-origin').on('change', updateRunOrigin);
   $('#execution-outcome').on('change', function () { $('#execution-failure-wrap').toggleClass('d-none', this.value !== 'FAIL'); });

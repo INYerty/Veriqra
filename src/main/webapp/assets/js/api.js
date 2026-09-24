@@ -6,6 +6,8 @@
     403: 'You do not have access to this action.',
     404: 'The requested item is no longer available.',
     409: 'This item has changed. Refresh and try again.',
+    413: 'The XML file exceeds the 5 MiB upload limit.',
+    415: 'The server requires application/xml for this upload.',
     429: 'Too many requests. Please try again shortly.'
   };
 
@@ -40,12 +42,26 @@
     });
     return result.promise();
   }
+  function xml(path, file) {
+    const url = new URL('api/' + path.replace(/^\/+/, ''), document.baseURI);
+    const result = $.Deferred();
+    $.ajax({ url: url.href, method: 'POST', data: file, processData: false,
+      contentType: 'application/xml', dataType: 'json', headers: { 'X-Veriqra-Request': '1' } })
+      .done(function (data) { result.resolve(data); })
+      .fail(function (xhr) {
+        const error = errorFrom(xhr);
+        if (error.status === 401 && !onLoginPage()) signIn();
+        result.reject(error);
+      });
+    return result.promise();
+  }
   global.VeriqraApi = Object.freeze({
     get: function (path, options) { return request('GET', path, undefined, options); },
     post: function (path, body, options) { return request('POST', path, body, options); },
     put: function (path, body, options) { return request('PUT', path, body, options); },
     delete: function (path, options) { return request('DELETE', path, undefined, options); },
     action: request,
+    xml: xml,
     signIn: signIn
   });
 })(window, jQuery);

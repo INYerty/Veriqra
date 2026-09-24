@@ -178,6 +178,7 @@ class AuthHttpIntegrationTest extends MysqlFixture {
     void assertFrontendResources(String baseUrl) throws Exception {
         for (String path : List.of("/", "/login.html", "/index.html", "/assets/css/app.css",
                 "/assets/js/api.js", "/assets/js/login.js", "/assets/js/app.js", "/assets/js/test-assets.js", "/assets/js/execution.js",
+                "/assets/js/defects.js", "/assets/js/automation-imports.js",
                 "/assets/vendor/jquery-3.7.1.min.js", "/assets/vendor/bootstrap-5.3.8.min.css",
                 "/assets/vendor/bootstrap-5.3.8.bundle.min.js")) {
             var result = client.send(HttpRequest.newBuilder(URI.create(baseUrl + path)).GET().build(),
@@ -200,6 +201,8 @@ class AuthHttpIntegrationTest extends MysqlFixture {
                 HttpResponse.BodyHandlers.ofString()).body();
         assertTrue(apiJs.contains("'X-Veriqra-Request': '1'"));
         assertTrue(apiJs.contains("new URL('api/'"));
+        assertTrue(apiJs.contains("contentType: 'application/xml'"));
+        assertTrue(apiJs.contains("processData: false"));
         assertFalse(apiJs.contains("'/api/"));
         var page = client.send(HttpRequest.newBuilder(URI.create(baseUrl + "/index.html")).GET().build(),
                 HttpResponse.BodyHandlers.ofString()).body();
@@ -209,6 +212,10 @@ class AuthHttpIntegrationTest extends MysqlFixture {
         assertTrue(page.contains("assets/js/execution.js"));
         assertTrue(page.contains("data-view=\"test-plans\""));
         assertTrue(page.contains("data-view=\"runs\""));
+        assertTrue(page.contains("assets/js/defects.js"));
+        assertTrue(page.contains("assets/js/automation-imports.js"));
+        assertTrue(page.contains("data-view=\"defects\""));
+        assertTrue(page.contains("data-view=\"automation\""));
         var assetsJs = client.send(HttpRequest.newBuilder(URI.create(baseUrl + "/assets/js/test-assets.js")).GET().build(),
                 HttpResponse.BodyHandlers.ofString()).body();
         assertTrue(assetsJs.contains("window.VeriqraApi"));
@@ -225,6 +232,14 @@ class AuthHttpIntegrationTest extends MysqlFixture {
         assertFalse(executionJs.contains("'/veriqra"));
         assertFalse(executionJs.contains("innerHTML"));
         assertFalse(executionJs.contains(".html("));
+        for (String script : List.of("defects.js", "automation-imports.js")) {
+            var source = client.send(HttpRequest.newBuilder(URI.create(baseUrl + "/assets/js/" + script)).GET().build(),
+                    HttpResponse.BodyHandlers.ofString()).body();
+            assertTrue(source.contains("window.VeriqraApi"), script);
+            assertFalse(source.contains("'/api/"), script);
+            assertFalse(source.contains("innerHTML"), script);
+            assertFalse(source.contains(".html("), script);
+        }
     }
 
     @Test void realProjectRequirementValidationAndCurrentMembership() throws Exception {
