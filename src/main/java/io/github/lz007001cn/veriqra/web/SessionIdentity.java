@@ -17,6 +17,11 @@ public final class SessionIdentity {
         throw new AuthenticationException();
     }
 
+    /** Telemetry only; never authorizes a request. */
+    public static Long optional(HttpServletRequest request) {
+        try { return require(request); } catch (AuthenticationException ignored) { return null; }
+    }
+
     public static void login(HttpServletRequest request, Long id) {
         // Invalidate any pre-login session so fixation IDs and arbitrary old attributes do not survive.
         logout(request);

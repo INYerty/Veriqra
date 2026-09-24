@@ -124,6 +124,7 @@
       .done(function (user) {
         currentUser = user;
         $('#current-user').text(user.username);
+        $('#admin-entry').toggleClass('d-none', user.systemRole !== 'ADMIN');
         showShell();
         loadProjects();
       })

@@ -7,6 +7,7 @@ import io.github.lz007001cn.veriqra.service.auth.PasswordVerifier;
 import io.github.lz007001cn.veriqra.service.importing.JUnitXmlParser;
 import io.github.lz007001cn.veriqra.service.support.*;
 import io.github.lz007001cn.veriqra.web.WebServices;
+import io.github.lz007001cn.veriqra.admin.*;
 import jakarta.servlet.*;
 import java.sql.*;
 import java.util.*;
@@ -36,8 +37,15 @@ public final class ApplicationListener implements ServletContextListener {
             var transactions = new JdbcServiceTransaction(new JdbcTransactionManager(pool));
             var daos = new JdbcServiceDaoFactory();
             var access = new ProjectAccessPolicy();
+            var passwords = new PasswordVerifier();
+            var adminPolicy = new AdminAccessPolicy();
+            context.setAttribute(AdminServices.ATTRIBUTE, new AdminServices(
+                    new AdminUserService(transactions, adminPolicy, passwords),
+                    new CreditService(transactions, adminPolicy),
+                    new AdminLogService(transactions, adminPolicy),
+                    new TelemetryService(transactions), System.currentTimeMillis()));
             context.setAttribute(WebServices.ATTRIBUTE, new WebServices(
-                    new DefaultAuthService(transactions, daos, new PasswordVerifier()),
+                    new DefaultAuthService(transactions, daos, passwords),
                     new DefaultProjectService(transactions, daos, access),
                     new DefaultRequirementService(transactions, daos, access),
                     new DefaultTestCaseService(transactions, daos, access),
@@ -57,6 +65,7 @@ public final class ApplicationListener implements ServletContextListener {
     }
     @Override public void contextDestroyed(ServletContextEvent event) {
         event.getServletContext().removeAttribute(WebServices.ATTRIBUTE);
+        event.getServletContext().removeAttribute(AdminServices.ATTRIBUTE);
         closePool(event.getServletContext());
     }
     private void closePool(ServletContext context) {

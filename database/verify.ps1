@@ -47,7 +47,7 @@ $versionResult = Invoke-ValidationSql 'SELECT VERSION();' 'version.tsv' $false
 if (($versionResult -split "\r?\n")[1] -cne '8.0.46') { throw 'This validation targets exactly MySQL 8.0.46.' }
 # CREATE without IF NOT EXISTS deliberately refuses an existing database.
 $null = Invoke-ValidationSql "CREATE DATABASE $Database CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;" 'create-database.tsv' $false
-foreach ($fileName in @('schema.sql','seed.sql','constraint-tests.sql','queries.sql','service-invariants.sql','inspect.sql')) {
+foreach ($fileName in @('schema-v1-frozen.sql','seed.sql','constraint-tests.sql','queries.sql','service-invariants.sql','inspect.sql')) {
     $sql = [IO.File]::ReadAllText((Join-Path $PSScriptRoot $fileName))
     $result = Invoke-ValidationSql $sql ($fileName + '.tsv')
     if ($fileName -eq 'constraint-tests.sql' -and $result -notmatch '(?m)^178\t178\t0\r?$') {

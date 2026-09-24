@@ -3,6 +3,7 @@ package io.github.lz007001cn.veriqra.web;
 import io.github.lz007001cn.veriqra.service.command.*;
 import io.github.lz007001cn.veriqra.web.dto.*;
 import io.github.lz007001cn.veriqra.web.handler.*;
+import io.github.lz007001cn.veriqra.admin.AdminServices;
 import jakarta.servlet.http.*;
 import java.io.IOException;
 
@@ -23,11 +24,16 @@ public final class ApiServlet extends HttpServlet {
                         var user = services.auth().authenticate(body.username(), body.password());
                         permit.success();
                         SessionIdentity.login(request, user.id());
+                        logLogin(request, user.id(), body.username(), "SUCCESS", null);
                         JsonHttp.write(response, 200, UserResponse.from(user));
                     } catch (io.github.lz007001cn.veriqra.service.exception.AuthenticationException e) {
                         permit.failure();
+                        logLogin(request, null, body.username(), "FAILURE", "INVALID_CREDENTIALS");
                         throw e;
                     }
+                } catch (io.github.lz007001cn.veriqra.web.security.LoginRateLimiter.Limited e) {
+                    logLogin(request, null, body.username(), "RATE_LIMITED", "RATE_LIMITED");
+                    throw e;
                 }
             }
             case "/auth/logout" -> {
@@ -54,7 +60,10 @@ public final class ApiServlet extends HttpServlet {
             }
             default -> {
                 String[] parts = path.split("/", -1);
-                if (parts.length >= 4 && parts[1].equals("automation") && parts[2].equals("identities")) {
+                if (path.equals("/admin") || path.startsWith("/admin/")) {
+                    AdminHandler.handle(request, response, AdminServices.from(getServletContext()),
+                            SessionIdentity.require(request), parts);
+                } else if (parts.length >= 4 && parts[1].equals("automation") && parts[2].equals("identities")) {
                     AutomationHandler.handle(request, response, services, SessionIdentity.require(request), parts);
                 } else {
                     projectRoute(request, response, services, path, method);
@@ -91,5 +100,13 @@ public final class ApiServlet extends HttpServlet {
 
     private static void method(HttpServletResponse response, String actual, String... allowed) {
         JsonHttp.method(response, actual, allowed);
+    }
+
+    private void logLogin(HttpServletRequest request, Long userId, String username, String result, String reason) {
+        try {
+            Object value=getServletContext().getAttribute(AdminServices.ATTRIBUTE);
+            if(value instanceof AdminServices admin) admin.telemetry().login(userId,username,request.getRemoteAddr(),
+                    request.getHeader("User-Agent"),result,reason);
+        } catch(RuntimeException ignored) { getServletContext().log("Login telemetry unavailable"); }
     }
 }

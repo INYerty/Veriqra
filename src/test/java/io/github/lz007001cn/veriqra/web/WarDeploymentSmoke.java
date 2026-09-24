@@ -57,6 +57,10 @@ public final class WarDeploymentSmoke {
                 for (String path : new String[]{"/", "/index.html", "/login.html", "/assets/css/app.css",
                         "/assets/js/api.js", "/assets/js/app.js", "/assets/js/login.js", "/assets/js/test-assets.js", "/assets/js/execution.js",
                         "/assets/js/defects.js", "/assets/js/automation-imports.js",
+                        "/admin/index.html", "/admin/users.html", "/admin/credits.html",
+                        "/admin/login-history.html", "/admin/access-logs.html", "/admin/audit-log.html",
+                        "/admin/sessions.html", "/admin/security.html", "/admin/system.html",
+                        "/admin/admin.css", "/admin/admin.js",
                         "/assets/vendor/jquery-3.7.1.min.js", "/assets/vendor/bootstrap-5.3.8.min.css",
                         "/assets/vendor/bootstrap-5.3.8.bundle.min.js"}) {
                     var resource = client.send(HttpRequest.newBuilder(URI.create("http://127.0.0.1:"

@@ -2,6 +2,7 @@ package io.github.lz007001cn.veriqra.web;
 
 import io.github.lz007001cn.veriqra.service.exception.*;
 import io.github.lz007001cn.veriqra.web.dto.ApiError;
+import io.github.lz007001cn.veriqra.admin.AdminConflictException;
 import jakarta.servlet.*;
 import jakarta.servlet.http.*;
 import java.io.IOException;
@@ -21,6 +22,7 @@ public final class ApiExceptionFilter implements Filter {
             String code = "INTERNAL_ERROR";
             String message = "An internal error occurred";
             if (failure instanceof HttpFailure f) { status = f.status(); code = f.code(); message = f.getMessage(); }
+            else if (failure instanceof AdminConflictException f) { status = 409; code = f.code(); message = f.getMessage(); }
             else if (failure instanceof io.github.lz007001cn.veriqra.web.security.LoginRateLimiter.Limited f) {
                 status = 429; code = "TOO_MANY_REQUESTS"; message = "Login temporarily unavailable; retry later";
                 response.setHeader("Retry-After", Long.toString(f.retryAfter()));

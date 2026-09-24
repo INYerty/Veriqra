@@ -1,0 +1,21 @@
+.admin-grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,12rem),1fr)); gap: .85rem; }
+.admin-card { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 1.2rem; min-width: 0; }
+.admin-card strong { display: block; font-size: 1.4rem; overflow-wrap: anywhere; }
+.admin-card small { color: var(--muted); }
+.admin-toolbar { display: flex; flex-wrap: wrap; gap: .7rem; align-items: end; margin: 0 0 1rem; }
+.admin-toolbar label { font-size: .78rem; font-weight: 650; min-width: min(100%,10rem); }
+.admin-toolbar .form-control,.admin-toolbar .form-select { margin-top: .3rem; }
+.admin-table-wrap { overflow-x: auto; background: #fff; border: 1px solid var(--line); border-radius: 12px; }
+.admin-table { width: 100%; border-collapse: collapse; font-size: .86rem; }
+.admin-table th,.admin-table td { padding: .8rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+.admin-table th { white-space: nowrap; color: var(--muted); font-size: .73rem; text-transform: uppercase; }
+.admin-table td { overflow-wrap: anywhere; min-width: 5rem; }
+.admin-table .actions { white-space: nowrap; }
+.admin-table .actions button { margin: .1rem; }
+.admin-pagination { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: .6rem; margin-top: 1rem; }
+.admin-prewrap { white-space: pre-wrap; overflow-wrap: anywhere; }
+.admin-detail { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,15rem),1fr)); gap: .6rem 1rem; }
+.admin-detail div { min-width: 0; overflow-wrap: anywhere; }
+.admin-detail dt { color: var(--muted); font-size: .75rem; text-transform: uppercase; }
+.admin-detail dd { margin: .2rem 0; }
+@media (max-width: 767px) { .admin-table th,.admin-table td { padding: .55rem; } .admin-toolbar label { flex: 1 1 10rem; } }

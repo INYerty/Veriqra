@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <base href="../">
+  <title>Experimental Credits · Veriqra Administration</title>
+  <link rel="stylesheet" href="assets/vendor/bootstrap-5.3.8.min.css">
+  <link rel="stylesheet" href="assets/css/app.css">
+  <link rel="stylesheet" href="admin/admin.css">
+  <script defer src="assets/vendor/jquery-3.7.1.min.js"></script>
+  <script defer src="assets/vendor/bootstrap-5.3.8.bundle.min.js"></script>
+  <script defer src="assets/js/api.js"></script>
+  <script defer src="admin/admin.js"></script>
+</head>
+<body class="app-page" data-admin-page="credits">
+  <div class="app-shell">
+    <header class="app-topbar">
+      <button id="admin-menu" class="btn btn-outline-secondary d-lg-none" type="button" aria-controls="admin-sidebar" aria-expanded="false">☰ <span class="visually-hidden">Toggle navigation</span></button>
+      <a class="topbar-brand" href="index.html"><span class="brand-square">V</span> Veriqra</a>
+      <span class="topbar-context">ADMINISTRATION</span>
+      <span class="topbar-spacer"></span>
+      <span id="admin-user" class="current-user"></span>
+      <button id="admin-logout" class="btn btn-outline-secondary btn-sm" type="button">Sign out</button>
+    </header>
+    <div class="app-body">
+      <nav id="admin-sidebar" class="sidebar" aria-label="Administration">
+        <span class="sidebar-heading">ADMINISTRATION</span>
+        <a class="nav-item" href="admin/index.html" data-admin-nav="index">Dashboard</a>
+        <a class="nav-item" href="admin/users.html" data-admin-nav="users">Users</a>
+        <a class="nav-item" href="admin/credits.html" data-admin-nav="credits">Experimental Credits</a>
+        <a class="nav-item" href="admin/login-history.html" data-admin-nav="login-history">Login History</a>
+        <a class="nav-item" href="admin/access-logs.html" data-admin-nav="access-logs">Access Logs</a>
+        <a class="nav-item" href="admin/audit-log.html" data-admin-nav="audit-log">Audit Log</a>
+        <a class="nav-item" href="admin/sessions.html" data-admin-nav="sessions">Sessions</a>
+        <a class="nav-item" href="admin/security.html" data-admin-nav="security">Security</a>
+        <a class="nav-item" href="admin/system.html" data-admin-nav="system">System</a>
+        <a class="nav-item" href="index.html">← Main workspace</a>
+        <div class="sidebar-footer">Veriqra · Experimental Credits have no monetary value</div>
+      </nav>
+      <main id="main-content" class="content" tabindex="-1">
+        <div class="page-heading"><div><span class="eyebrow">PLATFORM</span><h1>Experimental Credits</h1><p class="text-secondary">Veriqra administration</p></div></div>
+        <div id="admin-feedback" class="alert d-none" role="status" aria-live="polite"></div>
+        <section id="admin-content" aria-label="Experimental Credits"><p role="status">Checking administrator access…</p></section>
+      </main>
+    </div>
+  </div>
+</body>
+</html>
+
