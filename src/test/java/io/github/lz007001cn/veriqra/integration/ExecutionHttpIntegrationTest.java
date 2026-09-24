@@ -200,6 +200,49 @@ class ExecutionHttpIntegrationTest extends MysqlFixture {
         });
     }
 
+    @Test void planMembershipSnapshotsAndThreeManualAttemptsRemainHistorical() throws Exception {
+        login(admin);
+        long p = project("PLANEXEC"), first = readyCase(p), second = readyCase(p);
+        var created = plan(p, List.of(first));
+        long planId = created.get("id").asLong();
+        String planPath = base(p) + "/test-plans/" + planId;
+        expect(204, "POST", planPath + "/test-cases/" + second, version(created.get("version").asInt()));
+        var withTwo = expect(200, "GET", planPath, null);
+        assertEquals(2, withTwo.get("testCaseIds").size());
+        expect(204, "POST", planPath + "/test-cases/" + second + "/remove", version(withTwo.at("/plan/version").asInt()));
+        var withOne = expect(200, "GET", planPath, null);
+        assertEquals(List.of(first), List.of(withOne.at("/testCaseIds/0").asLong()));
+        expect(204, "POST", planPath + "/test-cases/" + second, version(withOne.at("/plan/version").asInt()));
+        var ready = expect(200, "PUT", planPath,
+                planUpdate(expect(200, "GET", planPath, null).at("/plan/version").asInt(), "READY"));
+        assertEquals("READY", ready.get("status").asText());
+        var run = expect(201, "POST", base(p) + "/runs", "{\"name\":\"manual release\",\"testPlanId\":" + planId + "}");
+        long runId = run.get("id").asLong();
+        assertEquals(1, expect(200, "GET", base(p) + "/runs", null).size());
+        String runPath = base(p) + "/runs/" + runId;
+        var before = expect(200, "GET", runPath, null);
+        assertEquals(2, before.get("cases").size());
+        long runCase = before.at("/cases/0/runCaseId").asLong();
+        var currentCase = expect(200, "GET", base(p) + "/test-cases/" + first, null);
+        expect(200, "PUT", base(p) + "/test-cases/" + first,
+                caseUpdate(currentCase.at("/testCase/version").asInt(), "changed after run", "READY"));
+        assertEquals(before, expect(200, "GET", runPath, null));
+        String historyPath = runPath + "/cases/" + runCase + "/attempts";
+        for (String outcome : List.of("FAIL", "PASS", "FAIL"))
+            expect(201, "POST", historyPath, attempt(outcome, UUID.randomUUID()));
+        var history = expect(200, "GET", historyPath, null);
+        assertEquals(List.of("FAIL", "PASS", "FAIL"),
+                List.of(history.get(0).get("outcome").asText(), history.get(1).get("outcome").asText(), history.get(2).get("outcome").asText()));
+        assertEquals(List.of(1, 2, 3),
+                List.of(history.get(0).get("attemptNo").asInt(), history.get(1).get("attemptNo").asInt(), history.get(2).get("attemptNo").asInt()));
+        assertEquals("FAIL", expect(200, "GET", runPath, null).at("/cases/0/currentOutcome").asText());
+        long otherRunCase = before.at("/cases/1/runCaseId").asLong();
+        expect(201, "POST", runPath + "/cases/" + otherRunCase + "/attempts", attempt("SKIPPED", UUID.randomUUID()));
+        expect(204, "POST", runPath + "/complete", version(run.get("version").asInt()));
+        assertEquals("COMPLETED", expect(200, "GET", runPath, null).at("/run/status").asText());
+        assertEquals(3, expect(200, "GET", historyPath, null).size());
+    }
+
     @Test void reopenAtomicallyRetainsBugAndOldEvidenceAndClearsResolution() throws Exception {
         var f=closedFlow();String path=defectPath(f.run().project(),f.defect());
         long newer=record(f.run(),"FAIL").get("id").asLong();

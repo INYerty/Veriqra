@@ -14,15 +14,16 @@
 
   function announce(name, detail) { document.dispatchEvent(new CustomEvent('veriqra:' + name, { detail: detail })); }
   function setView(view) {
-    currentView = ['dashboard', 'requirements', 'test-cases'].includes(view) ? view : 'dashboard';
+    currentView = ['dashboard', 'requirements', 'test-cases', 'test-plans', 'runs'].includes(view) ? view : 'dashboard';
     $('[data-view]').removeClass('active').removeAttr('aria-current');
     $('[data-view="' + currentView + '"]').addClass('active').attr('aria-current', 'page');
-    const labels = { dashboard: ['OVERVIEW', 'Project dashboard', 'Your current quality workspace.'], requirements: ['TEST ASSETS', 'Requirements', 'Manage requirements and their test coverage.'], 'test-cases': ['TEST ASSETS', 'Test cases', 'Maintain current test definitions and steps.'] };
+    const labels = { dashboard: ['OVERVIEW', 'Project dashboard', 'Your current quality workspace.'], requirements: ['TEST ASSETS', 'Requirements', 'Manage requirements and their test coverage.'], 'test-cases': ['TEST ASSETS', 'Test cases', 'Maintain current test definitions and steps.'], 'test-plans': ['PLANNING', 'Test plans', 'Define the cases to execute.'], runs: ['EXECUTION', 'Test runs', 'Inspect frozen snapshots and record attempts.'] };
     $('#view-eyebrow').text(labels[currentView][0]);
     $('#view-title').text(labels[currentView][1]);
     $('#view-description').text(labels[currentView][2]);
     $('#project-dashboard').toggleClass('d-none', currentView !== 'dashboard' || !selectedId);
-    $('#asset-workspace').toggleClass('d-none', currentView === 'dashboard' || !selectedId);
+    $('#asset-workspace').toggleClass('d-none', !['requirements', 'test-cases'].includes(currentView) || !selectedId);
+    $('#execution-workspace').toggleClass('d-none', !['test-plans', 'runs'].includes(currentView) || !selectedId);
     $('#sidebar').removeClass('open');
     $('#sidebar-toggle').attr('aria-expanded', 'false');
     announce('view', { view: currentView, projectId: selectedId });
@@ -37,13 +38,14 @@
     projects = [];
     selectedId = null;
     picker.empty().append($('<option>').val('').text('Loading projects…')).prop('disabled', true);
-    $('#project-dashboard, #empty-projects, #asset-workspace').addClass('d-none');
+    $('#project-dashboard, #empty-projects, #asset-workspace, #execution-workspace').addClass('d-none');
     $('#project-key, #project-title, #project-description, #project-status, #account-name').text('');
   }
   function showProject(project) {
     $('#empty-projects').addClass('d-none');
     $('#project-dashboard').toggleClass('d-none', currentView !== 'dashboard');
-    $('#asset-workspace').toggleClass('d-none', currentView === 'dashboard');
+    $('#asset-workspace').toggleClass('d-none', !['requirements', 'test-cases'].includes(currentView));
+    $('#execution-workspace').toggleClass('d-none', !['test-plans', 'runs'].includes(currentView));
     $('#project-title').text(project.name);
     $('#project-key').text(project.projectKey);
     $('#project-description').text(project.description || 'No project description has been added.');
@@ -59,7 +61,7 @@
     selecting = true;
     selectedId = null;
     announce('project', { project: null });
-    $('#project-dashboard, #asset-workspace').addClass('d-none');
+    $('#project-dashboard, #asset-workspace, #execution-workspace').addClass('d-none');
     picker.prop('disabled', true);
     feedback('');
     api.get('projects/' + encodeURIComponent(id))
@@ -92,7 +94,7 @@
           announce('project', { project: null });
           rememberProject(null);
           picker.append($('<option>').val('').text('No projects available'));
-          $('#project-dashboard, #asset-workspace').addClass('d-none');
+          $('#project-dashboard, #asset-workspace, #execution-workspace').addClass('d-none');
           $('#empty-projects').removeClass('d-none');
           return;
         }
@@ -160,7 +162,7 @@
     const card = $('<div class="workflow-card">');
     card.append($('<span class="workflow-number">').text(String(index + 1).padStart(2, '0')));
     card.append($('<strong>').text(name));
-    card.append($('<span class="workflow-later">').text(index < 2 ? 'Available in the sidebar' : 'UI coming later'));
+    card.append($('<span class="workflow-later">').text(index < 4 ? 'Available in the sidebar' : 'UI coming later'));
     $('#workflow').append(card);
   });
   // pageshow also runs when navigating Back to a page restored from the back/forward cache.

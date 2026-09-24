@@ -177,7 +177,7 @@ class AuthHttpIntegrationTest extends MysqlFixture {
 
     void assertFrontendResources(String baseUrl) throws Exception {
         for (String path : List.of("/", "/login.html", "/index.html", "/assets/css/app.css",
-                "/assets/js/api.js", "/assets/js/login.js", "/assets/js/app.js", "/assets/js/test-assets.js",
+                "/assets/js/api.js", "/assets/js/login.js", "/assets/js/app.js", "/assets/js/test-assets.js", "/assets/js/execution.js",
                 "/assets/vendor/jquery-3.7.1.min.js", "/assets/vendor/bootstrap-5.3.8.min.css",
                 "/assets/vendor/bootstrap-5.3.8.bundle.min.js")) {
             var result = client.send(HttpRequest.newBuilder(URI.create(baseUrl + path)).GET().build(),
@@ -206,6 +206,9 @@ class AuthHttpIntegrationTest extends MysqlFixture {
         assertTrue(page.contains("assets/js/test-assets.js"));
         assertTrue(page.contains("data-view=\"requirements\""));
         assertTrue(page.contains("data-view=\"test-cases\""));
+        assertTrue(page.contains("assets/js/execution.js"));
+        assertTrue(page.contains("data-view=\"test-plans\""));
+        assertTrue(page.contains("data-view=\"runs\""));
         var assetsJs = client.send(HttpRequest.newBuilder(URI.create(baseUrl + "/assets/js/test-assets.js")).GET().build(),
                 HttpResponse.BodyHandlers.ofString()).body();
         assertTrue(assetsJs.contains("window.VeriqraApi"));
@@ -213,6 +216,15 @@ class AuthHttpIntegrationTest extends MysqlFixture {
         assertFalse(assetsJs.contains("'/veriqra"));
         assertFalse(assetsJs.contains("innerHTML"));
         assertFalse(assetsJs.contains(".html("));
+        var executionJs = client.send(HttpRequest.newBuilder(URI.create(baseUrl + "/assets/js/execution.js")).GET().build(),
+                HttpResponse.BodyHandlers.ofString()).body();
+        assertTrue(executionJs.contains("window.VeriqraApi"));
+        assertTrue(executionJs.contains("snapshotTitle"));
+        assertTrue(executionJs.contains("submissionKey"));
+        assertFalse(executionJs.contains("'/api/"));
+        assertFalse(executionJs.contains("'/veriqra"));
+        assertFalse(executionJs.contains("innerHTML"));
+        assertFalse(executionJs.contains(".html("));
     }
 
     @Test void realProjectRequirementValidationAndCurrentMembership() throws Exception {

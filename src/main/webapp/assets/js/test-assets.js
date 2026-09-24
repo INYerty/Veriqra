@@ -9,9 +9,10 @@
   let currentLinks = [];
   let editing = false;
   const root = $('#asset-workspace');
+  const active = function () { return view === 'requirements' || view === 'test-cases'; };
   const kind = function () { return view === 'requirements' ? 'requirements' : 'test-cases'; };
   const base = function (type) { return 'projects/' + encodeURIComponent(projectId) + '/' + type; };
-  const valid = function (token) { return token === generation && projectId && view !== 'dashboard'; };
+  const valid = function (token) { return token === generation && projectId && active(); };
   const label = function (value) { return String(value || '').replaceAll('_', ' '); };
 
   function notice(message, error) {
@@ -50,7 +51,7 @@
   function key(row) { return (view === 'requirements' ? 'REQ-' : 'TC-') + String(row.keyNo).padStart(3, '0'); }
 
   async function list() {
-    if (!projectId || view === 'dashboard') return;
+    if (!projectId || !active()) return;
     const token = ++generation;
     detail = null;
     panels('list'); notice('');
@@ -187,7 +188,7 @@
     $('#step-editor .step-number').each(function (index) { $(this).text('Step ' + (index + 1)); });
   }
   function showForm(update) {
-    if (!projectId || view === 'dashboard') return;
+    if (!projectId || !active()) return;
     editing = update;
     $('#asset-save').prop('disabled', false);
     formError(''); notice('');
@@ -214,12 +215,12 @@
   $(document).on('veriqra:project', function (event) {
     reset();
     projectId = event.originalEvent.detail.project ? String(event.originalEvent.detail.project.id) : null;
-    if (projectId && view !== 'dashboard') list();
+    if (projectId && active()) list();
   });
   $(document).on('veriqra:view', function (event) {
     const next = event.originalEvent.detail.view;
     if (next !== view) { reset(); view = next; }
-    if (projectId && view !== 'dashboard') list();
+    if (projectId && active()) list();
   });
   $('#asset-back').on('click', list);
   $('#asset-new').on('click', function () { showForm(false); });

@@ -11,6 +11,7 @@
   <script defer src="assets/js/api.js"></script>
   <script defer src="assets/js/app.js"></script>
   <script defer src="assets/js/test-assets.js"></script>
+  <script defer src="assets/js/execution.js"></script>
 </head>
 <body class="app-page">
   <div id="bootstrap-screen" class="bootstrap-screen" role="status" aria-live="polite">
@@ -33,8 +34,8 @@
         <div class="sidebar-heading mt-4">QUALITY FLOW</div>
         <a class="nav-item" href="#requirements" data-view="requirements">▤ <span>Requirements</span></a>
         <a class="nav-item" href="#test-cases" data-view="test-cases">◇ <span>Test cases</span></a>
-        <span class="nav-item disabled" aria-disabled="true">≡ <span>Test plans</span><small>Later</small></span>
-        <span class="nav-item disabled" aria-disabled="true">▷ <span>Runs</span><small>Later</small></span>
+        <a class="nav-item" href="#test-plans" data-view="test-plans">≡ <span>Test plans</span></a>
+        <a class="nav-item" href="#runs" data-view="runs">▷ <span>Runs</span></a>
         <span class="nav-item disabled" aria-disabled="true">⌁ <span>Defects</span><small>Later</small></span>
         <span class="nav-item disabled" aria-disabled="true">⚙ <span>Automation &amp; imports</span><small>Later</small></span>
         <div class="sidebar-footer">Software Test &amp; Quality Management</div>
@@ -76,6 +77,48 @@
             <div id="asset-case-fields" class="d-none"><div class="mb-3"><label for="asset-preconditions" class="form-label">Preconditions</label><textarea id="asset-preconditions" class="form-control" rows="2"></textarea></div><div class="asset-panel-heading"><h3>Test steps</h3><button id="step-add" class="btn btn-outline-primary btn-sm" type="button">Add step</button></div><p class="text-secondary small">Steps are saved together with the test case. Order starts at 1.</p><div id="step-editor"></div></div>
             <button id="asset-save" class="btn btn-primary" type="submit">Save</button>
           </form>
+        </section>
+        <section id="execution-workspace" class="d-none" aria-label="Plans and runs">
+          <div id="execution-notice" class="alert d-none" role="status" aria-live="polite"></div>
+          <div id="execution-list-panel" class="asset-panel">
+            <div class="asset-panel-heading"><h2 id="execution-list-title"></h2><button id="execution-new" class="btn btn-primary" type="button">Create</button></div>
+            <p id="execution-list-status" role="status" aria-live="polite" class="text-secondary"></p>
+            <div id="execution-list"></div>
+          </div>
+          <div id="execution-detail-panel" class="asset-panel d-none">
+            <div class="asset-panel-heading"><h2 id="execution-detail-title"></h2><button id="execution-back" class="btn btn-outline-secondary" type="button">Back to list</button></div>
+            <div id="execution-detail"></div>
+            <div id="execution-actions" class="step-actions"></div>
+            <section id="execution-items-section" class="mt-4" aria-label="Plan cases or run snapshots"><h3 id="execution-items-title"></h3><p id="execution-items-status" role="status" aria-live="polite"></p><div id="execution-items"></div></section>
+          </div>
+          <form id="execution-form" class="asset-panel d-none" novalidate>
+            <div class="asset-panel-heading"><h2 id="execution-form-title"></h2><button id="execution-cancel" class="btn btn-outline-secondary" type="button">Cancel</button></div>
+            <div id="execution-form-error" class="alert alert-danger d-none" role="alert" aria-live="assertive"></div>
+            <div class="mb-3"><label for="execution-name" class="form-label">Name <span aria-hidden="true">*</span></label><input id="execution-name" class="form-control" required maxlength="160"></div>
+            <div id="execution-description-wrap" class="mb-3"><label for="execution-description" class="form-label">Description</label><textarea id="execution-description" class="form-control" rows="3"></textarea></div>
+            <div id="execution-status-wrap" class="mb-3 d-none"><label for="execution-status" class="form-label">Status</label><select id="execution-status" class="form-select"><option value="DRAFT">Draft</option><option value="READY">Ready</option></select></div>
+            <div id="execution-run-fields" class="d-none">
+              <div class="mb-3"><label for="execution-origin" class="form-label">Run source</label><select id="execution-origin" class="form-select"><option value="plan">Ready test plan</option><option value="adhoc">Ad-hoc ready cases</option></select></div>
+              <div id="execution-plan-wrap" class="mb-3"><label for="execution-plan" class="form-label">Ready plan</label><select id="execution-plan" class="form-select"></select></div>
+              <div class="row g-3 mb-3"><div class="col-sm-6"><label for="execution-environment" class="form-label">Environment</label><input id="execution-environment" class="form-control" maxlength="160"></div><div class="col-sm-6"><label for="execution-build" class="form-label">Build version</label><input id="execution-build" class="form-control" maxlength="80"></div></div>
+            </div>
+            <fieldset id="execution-cases-fieldset" class="mb-3"><legend class="fs-6">Test cases</legend><p class="text-secondary small">Only cases in the current project are listed. Run creation requires READY cases.</p><div id="execution-case-selector" class="execution-selector"></div></fieldset>
+            <button id="execution-save" class="btn btn-primary" type="submit">Save</button>
+          </form>
+          <section id="execution-case-panel" class="asset-panel d-none" aria-label="Run case snapshot and attempts">
+            <div class="asset-panel-heading"><h2 id="execution-case-title"></h2><button id="execution-case-back" class="btn btn-outline-secondary" type="button">Back to run</button></div>
+            <p class="text-secondary">Snapshot captured when this run was created. Later edits to the test case do not change it.</p>
+            <div id="execution-snapshot"></div><h3 class="fs-5 mt-4">Attempt history</h3>
+            <p id="execution-history-status" role="status" aria-live="polite"></p><div id="execution-history"></div>
+            <form id="execution-attempt-form" class="mt-4 d-none" novalidate>
+              <h3 class="fs-5">Record a new attempt</h3><p class="text-secondary small">Retesting appends a new attempt. Earlier results remain visible.</p>
+              <div id="execution-attempt-error" class="alert alert-danger d-none" role="alert" aria-live="assertive"></div>
+              <div class="row g-3 mb-3"><div class="col-sm-6"><label for="execution-outcome" class="form-label">Outcome</label><select id="execution-outcome" class="form-select"><option value="PASS">PASS</option><option value="FAIL">FAIL</option><option value="BLOCKED">BLOCKED</option><option value="SKIPPED">SKIPPED</option></select></div><div class="col-sm-6"><label for="execution-duration" class="form-label">Duration (ms, optional)</label><input id="execution-duration" class="form-control" type="number" min="0" step="1"></div></div>
+              <div class="mb-3"><label for="execution-comment" class="form-label">Actual result / comment</label><textarea id="execution-comment" class="form-control" rows="3"></textarea></div>
+              <div id="execution-failure-wrap" class="mb-3 d-none"><label for="execution-failure" class="form-label">Failure message</label><textarea id="execution-failure" class="form-control" rows="2"></textarea></div>
+              <button id="execution-submit" class="btn btn-primary" type="submit">Record new attempt</button>
+            </form>
+          </section>
         </section>
       </main>
     </div>

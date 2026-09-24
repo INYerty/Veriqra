@@ -85,7 +85,14 @@ a, button, input, select { transition: box-shadow .15s ease, background-color .1
 .asset-link-select { width: min(100%, 450px); }
 .step-actions { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: .75rem; }
 #asset-trace-section { border-top: 1px solid var(--line); margin-top: 1.5rem; padding-top: .5rem; }
+.execution-selector { max-height: 18rem; overflow-y: auto; border: 1px solid var(--line); border-radius: 8px; padding: .75rem 1rem; }
+.execution-selector .form-check { padding-top: .35rem; padding-bottom: .35rem; overflow-wrap: anywhere; }
+.execution-inline-select { width: min(100%, 26rem); }
+.execution-attempt { border: 1px solid var(--line); border-radius: 8px; padding: 1rem; margin-bottom: .75rem; overflow-wrap: anywhere; }
+#execution-snapshot .asset-step div, #execution-history dd { white-space: pre-wrap; overflow-wrap: anywhere; }
+#execution-actions { align-items: center; }
 @media (max-width: 991px) { .sidebar { display: none; position: fixed; top: 68px; bottom: 0; z-index: 15; box-shadow: 5px 0 20px #122b3d30; } .sidebar.open { display: flex; } }
 @media (max-width: 767px) { .login-layout { display: block; } .login-intro { padding: 1.5rem; min-height: 160px; } .brand-mark { width: 42px; height: 42px; margin-bottom: 1rem; font-size: 1.1rem; } .login-intro h1 { font-size: 1.7rem; } .intro-copy, .intro-rule, .intro-caption { display: none; } .login-panel { padding: 2rem 1.25rem; } .app-topbar { padding: 0 .8rem; } .topbar-brand { font-size: 1rem; } .current-user { max-width: 6rem; } .project-hero { align-items: flex-start; flex-wrap: wrap; } .project-monogram { width: 50px; height: 50px; flex-basis: 50px; font-size: 1.4rem; } .workflow-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 480px) { .workflow-grid { grid-template-columns: 1fr; } .app-topbar { gap: .5rem; } }
 @media (max-width: 767px) { .asset-list-row { align-items: flex-start; flex-direction: column; } .asset-fields { grid-template-columns: 1fr; } .asset-list-meta { flex-wrap: wrap; } .asset-link-row > span:first-child { min-width: 100%; } }
+@media (max-width: 767px) { #execution-items .asset-list-row { align-items: flex-start; flex-direction: column; } #execution-actions > button, #execution-actions > select { max-width: 100%; } }
