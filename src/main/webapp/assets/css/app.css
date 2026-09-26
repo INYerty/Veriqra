@@ -7,13 +7,17 @@ a, button, input, select { transition: box-shadow .15s ease, background-color .1
 .btn-primary:hover, .btn-primary:focus { background: var(--accent-dark); border-color: var(--accent-dark); }
 .form-control:focus, .form-select:focus { border-color: var(--accent); box-shadow: 0 0 0 .2rem #087e8530; }
 .login-page { min-height: 100vh; }
+.locale-control { flex: 0 0 auto; }
+.locale-control .form-select { width: 116px; min-height: 34px; font-size: .83rem; }
+.login-locale { position: absolute; top: 1rem; right: 1rem; z-index: 2; display: flex; align-items: center; gap: .5rem; padding: .4rem .55rem; border-radius: 8px; background: #fff; box-shadow: 0 2px 12px #122b3d22; }
+.login-locale label { margin: 0; font-size: .8rem; }
 .login-layout { min-height: 100vh; display: grid; grid-template-columns: minmax(0, 1fr) minmax(400px, 44%); padding: 0; }
 .login-intro { background: var(--nav); color: #f4fafb; padding: clamp(2rem, 6vw, 6rem); display: flex; flex-direction: column; justify-content: center; }
 .brand-mark { width: 56px; height: 56px; display: grid; place-items: center; margin-bottom: 5rem; color: #fff; background: var(--accent); border-radius: 12px; font-size: 1.6rem; font-weight: 800; }
 .brand-mark span { color: #8af0e9; }
 .login-intro .eyebrow { color: #8bd5d4; }
 .login-intro h1 { font-size: clamp(2.8rem, 5vw, 5.5rem); line-height: 1.08; font-weight: 750; letter-spacing: -.05em; }
-.login-intro h1 span { color: #8bd5d4; }
+.login-intro h1 span:last-child { color: #8bd5d4; }
 .intro-copy { max-width: 30rem; color: #c6d4dd; font-size: 1.15rem; line-height: 1.7; margin-top: 1.5rem; }
 .intro-rule { width: 4rem; height: 2px; background: #44b8b7; margin-top: 5rem; }
 .intro-caption { color: #aebfc9; margin-top: 1rem; font-size: .86rem; }
@@ -93,8 +97,8 @@ a, button, input, select { transition: box-shadow .15s ease, background-color .1
 #execution-snapshot .asset-step div, #execution-history dd { white-space: pre-wrap; overflow-wrap: anywhere; }
 #execution-actions { align-items: center; }
 @media (max-width: 991px) { .sidebar { display: none; position: fixed; top: 68px; bottom: 0; z-index: 15; box-shadow: 5px 0 20px #122b3d30; } .sidebar.open { display: flex; } }
-@media (max-width: 767px) { .login-layout { display: block; } .login-intro { padding: 1.5rem; min-height: 160px; } .brand-mark { width: 42px; height: 42px; margin-bottom: 1rem; font-size: 1.1rem; } .login-intro h1 { font-size: 1.7rem; } .intro-copy, .intro-rule, .intro-caption { display: none; } .login-panel { padding: 2rem 1.25rem; } .app-topbar { padding: 0 .8rem; } .topbar-brand { font-size: 1rem; } .current-user { max-width: 6rem; } .project-hero { align-items: flex-start; flex-wrap: wrap; } .project-monogram { width: 50px; height: 50px; flex-basis: 50px; font-size: 1.4rem; } .workflow-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@media (max-width: 480px) { .workflow-grid { grid-template-columns: 1fr; } .app-topbar { gap: .5rem; } }
+@media (max-width: 767px) { .login-layout { display: block; } .login-intro { padding: 1.5rem; min-height: 160px; } .brand-mark { width: 42px; height: 42px; margin-bottom: 1rem; font-size: 1.1rem; } .login-intro h1 { font-size: 1.7rem; } .intro-copy, .intro-rule, .intro-caption { display: none; } .login-panel { padding: 2rem 1.25rem; } .app-topbar { padding: 0 .8rem; } .topbar-brand { font-size: 1rem; } .topbar-context { display: none; } .current-user { max-width: 6rem; } .project-hero { align-items: flex-start; flex-wrap: wrap; } .project-monogram { width: 50px; height: 50px; flex-basis: 50px; font-size: 1.4rem; } .workflow-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 480px) { .workflow-grid { grid-template-columns: 1fr; } .app-topbar { gap: .5rem; } .app-topbar .current-user { display: none; } .app-topbar .topbar-brand { font-size: 0; } .app-topbar .brand-square { font-size: 1rem; flex: 0 0 35px; } .app-topbar .locale-control .form-select { width: 100px; } }
 @media (max-width: 767px) { .asset-list-row { align-items: flex-start; flex-direction: column; } .asset-fields { grid-template-columns: 1fr; } .asset-list-meta { flex-wrap: wrap; } .asset-link-row > span:first-child { min-width: 100%; } }
 @media (max-width: 767px) { #execution-items .asset-list-row { align-items: flex-start; flex-direction: column; } #execution-actions > button, #execution-actions > select { max-width: 100%; } }
 .automation-case-select { width: min(100%, 30rem); }

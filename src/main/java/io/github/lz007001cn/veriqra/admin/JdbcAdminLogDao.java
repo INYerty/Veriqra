@@ -99,22 +99,30 @@ public final class JdbcAdminLogDao implements AdminLogDao {
         void bind(PreparedStatement s)throws SQLException {for(int i=0;i<values.size();i++)s.setObject(i+1,values.get(i));}
     }
 
-    @Override public AdminMetrics metrics() {
+    @Override public AdminMetrics metrics(AdminTodayWindow today) {
+        Objects.requireNonNull(today);
+        String inToday="created_at>=? AND created_at<?";
         String sql="SELECT (SELECT COUNT(*) FROM users),(SELECT COUNT(*) FROM users WHERE status='ACTIVE'),"
                 +"(SELECT COUNT(*) FROM users WHERE status='DISABLED'),(SELECT COUNT(*) FROM users WHERE system_role='ADMIN'),"
-                +"(SELECT COUNT(*) FROM login_events WHERE result='SUCCESS' AND created_at>=UTC_DATE()),"
-                +"(SELECT COUNT(*) FROM login_events WHERE result='FAILURE' AND created_at>=UTC_DATE()),"
-                +"(SELECT COUNT(*) FROM login_events WHERE result='RATE_LIMITED' AND created_at>=UTC_DATE()),"
-                +"(SELECT COUNT(*) FROM access_logs WHERE created_at>=UTC_DATE()),"
-                +"(SELECT COUNT(*) FROM access_logs WHERE status_code BETWEEN 400 AND 499 AND created_at>=UTC_DATE()),"
-                +"(SELECT COUNT(*) FROM access_logs WHERE status_code BETWEEN 500 AND 599 AND created_at>=UTC_DATE()),"
-                +"(SELECT COUNT(DISTINCT ip_address) FROM access_logs WHERE created_at>=UTC_DATE()),"
-                +"(SELECT COALESCE(SUM(amount),0) FROM credit_transactions WHERE type='GRANT' AND created_at>=UTC_DATE()),"
-                +"(SELECT COALESCE(SUM(amount),0) FROM credit_transactions WHERE type='RECLAIM' AND created_at>=UTC_DATE())";
-        try(var s=connection.prepareStatement(sql);var rs=s.executeQuery()) {
+                +"(SELECT COUNT(*) FROM login_events WHERE result='SUCCESS' AND "+inToday+"),"
+                +"(SELECT COUNT(*) FROM login_events WHERE result='FAILURE' AND "+inToday+"),"
+                +"(SELECT COUNT(*) FROM login_events WHERE result='RATE_LIMITED' AND "+inToday+"),"
+                +"(SELECT COUNT(*) FROM access_logs WHERE "+inToday+"),"
+                +"(SELECT COUNT(*) FROM access_logs WHERE status_code BETWEEN 400 AND 499 AND "+inToday+"),"
+                +"(SELECT COUNT(*) FROM access_logs WHERE status_code BETWEEN 500 AND 599 AND "+inToday+"),"
+                +"(SELECT COUNT(DISTINCT ip_address) FROM access_logs WHERE "+inToday+"),"
+                +"(SELECT COALESCE(SUM(amount),0) FROM credit_transactions WHERE type='GRANT' AND "+inToday+"),"
+                +"(SELECT COALESCE(SUM(amount),0) FROM credit_transactions WHERE type='RECLAIM' AND "+inToday+")";
+        try(var s=connection.prepareStatement(sql)) {
+            for(int i=1;i<=18;i+=2) {
+                s.setObject(i,today.startUtc());
+                s.setObject(i+1,today.nextStartUtc());
+            }
+            try(var rs=s.executeQuery()) {
             rs.next();return new AdminMetrics(rs.getLong(1),rs.getLong(2),rs.getLong(3),rs.getLong(4),rs.getLong(5),
                     rs.getLong(6),rs.getLong(7),rs.getLong(8),rs.getLong(9),rs.getLong(10),rs.getLong(11),
                     rs.getBigDecimal(12).toBigIntegerExact(),rs.getBigDecimal(13).toBigIntegerExact());
+            }
         } catch(SQLException e) { throw new DataAccessException("Admin metrics",e); }
     }
 

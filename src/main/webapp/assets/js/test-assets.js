@@ -1,5 +1,6 @@
 (function ($, api) {
   'use strict';
+  const t = window.I18n.t;
   // Project and view ownership stay in app.js. This module only renders current test assets.
   let projectId = null;
   let view = 'dashboard';
@@ -13,7 +14,7 @@
   const kind = function () { return view === 'requirements' ? 'requirements' : 'test-cases'; };
   const base = function (type) { return 'projects/' + encodeURIComponent(projectId) + '/' + type; };
   const valid = function (token) { return token === generation && projectId && active(); };
-  const label = function (value) { return String(value || '').replaceAll('_', ' '); };
+  const label = function (value) { return window.I18n.enumLabel(value); };
 
   function notice(message, error) {
     $('#asset-notice').text(message || '').toggleClass('d-none', !message)
@@ -46,7 +47,7 @@
     return $('<div class="asset-field">').append($('<dt>').text(term), $('<dd>').text(value == null || value === '' ? '—' : String(value)));
   }
   function statusField(status) {
-    return $('<div class="asset-field">').append($('<dt>').text('Status'), $('<dd>').append(badge(status)));
+    return $('<div class="asset-field">').append($('<dt>').text(t("common.status", null, 'Status')), $('<dd>').append(badge(status)));
   }
   function key(row) { return (view === 'requirements' ? 'REQ-' : 'TC-') + String(row.keyNo).padStart(3, '0'); }
 
@@ -55,23 +56,24 @@
     const token = ++generation;
     detail = null;
     panels('list'); notice('');
-    $('#asset-list-title').text(view === 'requirements' ? 'Requirements' : 'Test cases');
-    $('#asset-new').text(view === 'requirements' ? 'Create requirement' : 'Create test case');
+    $('#asset-list-title').text(view === 'requirements' ? t("common.requirements", null, 'Requirements') : t("common.testCases", null, 'Test cases'));
+    $('#asset-new').text(view === 'requirements' ? t("assets.createRequirement", null, 'Create requirement') : t("assets.createTestCase", null, 'Create test case'));
     $('#asset-list').empty();
-    $('#asset-list-status').text('Loading…');
+    $('#asset-list-status').text(t("common.loading", null, 'Loading…'));
     try {
       const result = await api.get(base(kind()));
       if (!valid(token)) return;
       rows = result;
-      $('#asset-list-status').text(result.length ? result.length + ' item(s)' : 'No items yet. Create the first one.');
+      $('#asset-list-status').text(result.length ? t('assets.itemCount', { count: window.I18n.formatNumber(result.length) }, '{count} item(s)')
+        : t("assets.noItemsYetCreateTheFirstOne", null, 'No items yet. Create the first one.'));
       result.forEach(function (item) {
         const card = $('<div class="asset-list-row">');
         const summary = $('<div class="asset-list-summary">').append(
           $('<strong>').text(key(item) + ' · ' + item.title),
-          $('<p class="mb-1 text-secondary">').text(item.description || 'No description'));
+          $('<p class="mb-1 text-secondary">').text(item.description || t("common.noDescription", null, 'No description')));
         const meta = $('<div class="asset-list-meta">').append(badge(item.status),
           $('<span>').text(label(item.priority)), $('<small>').text('v' + item.version));
-        const open = $('<button type="button" class="btn btn-outline-primary btn-sm">').text('View ' + key(item))
+        const open = $('<button type="button" class="btn btn-outline-primary btn-sm">').text(t('assets.viewItem', { key: key(item) }, 'View {key}'))
           .on('click', function () { openDetail(item.id); });
         card.append(summary, meta, open);
         $('#asset-list').append(card);
@@ -97,7 +99,7 @@
     $('#trace-add-button, #trace-submit').prop('disabled', false);
     editing = false;
     panels('detail'); notice('');
-    $('#asset-detail-title').text('Loading…');
+    $('#asset-detail-title').text(t("common.loading", null, 'Loading…'));
     $('#asset-detail, #asset-steps, #asset-traces').empty();
     try {
       const current = await api.get(base(kind()) + '/' + encodeURIComponent(id));
@@ -106,14 +108,14 @@
       detail = { row: row, steps: view === 'test-cases' ? current.steps : [] };
       $('#asset-detail-title').text(key(row) + ' · ' + row.title);
       $('#asset-detail').append($('<dl class="asset-fields">').append(
-        statusField(row.status), field('Priority', label(row.priority)),
-        field('Description', row.description), field('Version', row.version), field('Updated', row.updatedAt)));
+        statusField(row.status), field(t("common.priority", null, 'Priority'), label(row.priority)),
+        field(t("common.description", null, 'Description'), row.description), field(t("common.version", null, 'Version'), row.version), field(t("common.updated", null, 'Updated'), window.I18n.formatDateTime(row.updatedAt))));
       $('#asset-steps-section').toggleClass('d-none', view !== 'test-cases');
       if (view === 'test-cases') {
-        $('#asset-detail dl').append(field('Preconditions', row.preconditions));
+        $('#asset-detail dl').append(field(t("assets.preconditions", null, 'Preconditions'), row.preconditions));
         renderSteps(current.steps);
       }
-      $('#trace-help').text(view === 'requirements' ? 'Linked test cases, including removed history.' : 'Linked requirements, including removed history.');
+      $('#trace-help').text(view === 'requirements' ? t("assets.linkedTestCasesIncludingRemovedHistory", null, 'Linked test cases, including removed history.') : t("assets.linkedRequirementsIncludingRemovedHistory", null, 'Linked requirements, including removed history.'));
       const links = view === 'requirements'
         ? await api.get(base('requirements') + '/' + row.id + '/test-cases')
         : await linksForCase(row.id, token);
@@ -122,18 +124,18 @@
   }
   function renderSteps(steps) {
     const target = $('#asset-steps').empty();
-    if (!steps.length) { target.append($('<p class="text-secondary">').text('No steps yet.')); return; }
+    if (!steps.length) { target.append($('<p class="text-secondary">').text(t("assets.noStepsYet", null, 'No steps yet.'))); return; }
     steps.forEach(function (step) {
       target.append($('<div class="asset-step">').append(
-        $('<strong>').text('Step ' + step.stepOrder),
-        $('<div>').append($('<span class="text-secondary">').text('Action: '), document.createTextNode(step.action)),
-        $('<div>').append($('<span class="text-secondary">').text('Expected: '), document.createTextNode(step.expectedResult))));
+        $('<strong>').text(t('assets.stepNumber', { number: step.stepOrder }, 'Step {number}')),
+        $('<div>').append($('<span class="text-secondary">').text(t("assets.action", null, 'Action: ')), document.createTextNode(step.action)),
+        $('<div>').append($('<span class="text-secondary">').text(t("assets.expected", null, 'Expected: ')), document.createTextNode(step.expectedResult))));
     });
   }
   function renderLinks(links) {
     currentLinks = links;
     const target = $('#asset-traces').empty();
-    if (!links.length) { target.append($('<p class="text-secondary">').text('No traceability records yet.')); return; }
+    if (!links.length) { target.append($('<p class="text-secondary">').text(t("assets.noTraceabilityRecordsYet", null, 'No traceability records yet.'))); return; }
     links.forEach(function (entry) {
       const row = view === 'requirements' ? entry.testCase : entry.requirement;
       const status = view === 'requirements' ? entry.status : entry.link.status;
@@ -141,15 +143,16 @@
       const caseId = view === 'requirements' ? row.id : detail.row.id;
       const item = $('<div class="asset-link-row">').append(
         $('<span>').text((view === 'requirements' ? 'TC-' : 'REQ-') + String(row.keyNo).padStart(3, '0') + ' · ' + row.title), badge(status));
-      if (status === 'NEEDS_REVIEW') item.append(actionButton('Confirm', 'confirm', requirementId, caseId, row.title));
-      if (status !== 'REMOVED') item.append(actionButton('Mark removed', 'remove', requirementId, caseId, row.title));
-      if (status === 'REMOVED') item.append(actionButton('Reattach', '', requirementId, caseId, row.title));
+      if (status === 'NEEDS_REVIEW') item.append(actionButton(t("common.confirm", null, 'Confirm'), 'confirm', requirementId, caseId, row.title));
+      if (status !== 'REMOVED') item.append(actionButton(t("assets.markRemoved", null, 'Mark removed'), 'remove', requirementId, caseId, row.title));
+      if (status === 'REMOVED') item.append(actionButton(t("assets.reattach", null, 'Reattach'), '', requirementId, caseId, row.title));
       target.append(item);
     });
   }
   function actionButton(text, action, reqId, caseId, name) {
     return $('<button type="button" class="btn btn-outline-secondary btn-sm">').text(text).on('click', async function () {
-      if (action === 'remove' && !window.confirm('Mark the link to "' + name + '" as REMOVED? The history will remain.')) return;
+      if (action === 'remove' && !window.confirm(t('assets.removeLinkConfirm', { name: name },
+        'Mark the link to "{name}" as REMOVED? The history will remain.'))) return;
       const button = $(this).prop('disabled', true);
       const token = generation;
       try {
@@ -165,27 +168,27 @@
     const row = $('<div class="step-editor-row">');
     const actionId = 'step-action-' + Math.random().toString(36).slice(2);
     const expectedId = 'step-expected-' + Math.random().toString(36).slice(2);
-    row.append($('<strong class="step-number">').text('Step'),
-      $('<label class="form-label">').attr('for', actionId).text('Action *'),
+    row.append($('<strong class="step-number">').text(t("assets.step", null, 'Step')),
+      $('<label class="form-label">').attr('for', actionId).text(t("assets.actionMessage", null, 'Action *')),
       $('<textarea class="form-control step-action" rows="2" required>').attr('id', actionId).val(step.action || ''),
-      $('<label class="form-label mt-2">').attr('for', expectedId).text('Expected result *'),
+      $('<label class="form-label mt-2">').attr('for', expectedId).text(t("assets.expectedResult", null, 'Expected result *')),
       $('<textarea class="form-control step-expected" rows="2" required>').attr('id', expectedId).val(step.expectedResult || ''));
     const controls = $('<div class="step-actions">');
-    [['Move up', -1], ['Move down', 1]].forEach(function (entry) {
+    [[t("assets.moveUp", null, 'Move up'), -1], [t("assets.moveDown", null, 'Move down'), 1]].forEach(function (entry) {
       controls.append($('<button type="button" class="btn btn-outline-secondary btn-sm">').text(entry[0]).on('click', function () {
         const sibling = entry[1] < 0 ? row.prev('.step-editor-row') : row.next('.step-editor-row');
         if (sibling.length) { if (entry[1] < 0) row.insertBefore(sibling); else row.insertAfter(sibling); renumberSteps(); }
       }));
     });
-    controls.append($('<button type="button" class="btn btn-outline-danger btn-sm">').text('Remove step').on('click', function () {
-      if (window.confirm('Remove this step from the test case definition?')) { row.remove(); renumberSteps(); }
+    controls.append($('<button type="button" class="btn btn-outline-danger btn-sm">').text(t("assets.removeStep", null, 'Remove step')).on('click', function () {
+      if (window.confirm(t("assets.removeThisStepFromTheTestCaseDefinition", null, 'Remove this step from the test case definition?'))) { row.remove(); renumberSteps(); }
     }));
     row.append(controls);
     $('#step-editor').append(row);
     renumberSteps();
   }
   function renumberSteps() {
-    $('#step-editor .step-number').each(function (index) { $(this).text('Step ' + (index + 1)); });
+    $('#step-editor .step-number').each(function (index) { $(this).text(t('assets.stepNumber', { number: index + 1 }, 'Step {number}')); });
   }
   function showForm(update) {
     if (!projectId || !active()) return;
@@ -194,7 +197,8 @@
     formError(''); notice('');
     const row = update ? detail.row : null;
     $('#asset-form')[0].reset();
-    $('#asset-form-title').text((update ? 'Edit ' : 'Create ') + (view === 'requirements' ? 'requirement' : 'test case'));
+    $('#asset-form-title').text(t(update ? (view === 'requirements' ? 'assets.editRequirement' : 'assets.editTestCase')
+      : (view === 'requirements' ? 'assets.createRequirement' : 'assets.createTestCase')));
     $('#asset-title').val(row ? row.title : '');
     $('#asset-description').val(row ? row.description || '' : '');
     $('#asset-priority').val(row ? row.priority : 'MEDIUM');
@@ -222,6 +226,23 @@
     if (next !== view) { reset(); view = next; }
     if (projectId && active()) list();
   });
+  document.addEventListener('veriqra:localechange', function () {
+    if (!projectId || !active()) return;
+    if (!$('#asset-form').hasClass('d-none')) {
+      $('#asset-form-title').text(t(editing ? (view === 'requirements' ? 'assets.editRequirement' : 'assets.editTestCase')
+        : (view === 'requirements' ? 'assets.createRequirement' : 'assets.createTestCase')));
+      $('#asset-status option').each(function () { $(this).text(label(this.value)); });
+      $('#step-editor .step-editor-row').each(function () {
+        $(this).find('.step-action').prev('label').text(t('assets.actionMessage'));
+        $(this).find('.step-expected').prev('label').text(t('assets.expectedResult'));
+        $(this).find('.step-actions button').eq(0).text(t('assets.moveUp'));
+        $(this).find('.step-actions button').eq(1).text(t('assets.moveDown'));
+        $(this).find('.step-actions button').eq(2).text(t('assets.removeStep'));
+      });
+      renumberSteps();
+    } else if (detail && !$('#asset-detail-panel').hasClass('d-none')) openDetail(detail.row.id);
+    else list();
+  });
   $('#asset-back').on('click', list);
   $('#asset-new').on('click', function () { showForm(false); });
   $('#asset-edit').on('click', function () { if (detail) showForm(true); });
@@ -242,14 +263,15 @@
           expectedResult: $(this).find('.step-expected').val().trim() };
       }).get();
       if (body.steps.some(function (step) { return !step.action || !step.expectedResult; })) {
-        formError('Every step needs an action and expected result.'); button.prop('disabled', false); return;
+        formError(t("assets.everyStepNeedsAnActionAndExpectedResult", null, 'Every step needs an action and expected result.')); button.prop('disabled', false); return;
       }
     }
-    if (!body.title) { formError('Title is required.'); button.prop('disabled', false); return; }
+    if (!body.title) { formError(t("assets.titleIsRequired", null, 'Title is required.')); button.prop('disabled', false); return; }
     if (editing) {
       body.status = $('#asset-status').val();
       body.expectedVersion = detail.row.version;
-      if (body.status === 'ARCHIVED' && detail.row.status !== 'ARCHIVED' && !window.confirm('Archive "' + detail.row.title + '"?')) {
+      if (body.status === 'ARCHIVED' && detail.row.status !== 'ARCHIVED' && !window.confirm(t('assets.archiveConfirm',
+        { title: detail.row.title }, 'Archive "{title}"?'))) {
         button.prop('disabled', false); return;
       }
     }
@@ -260,7 +282,7 @@
       if (valid(token)) await openDetail(saved.id);
     } catch (failure) {
       if (valid(token)) formError(failure.status === 409
-        ? 'This item was changed by another operation. Cancel and reload the latest version before saving.'
+        ? t("assets.thisItemWasChangedByAnotherOperationCancelAndReloadTheLatestVersionBeforeSaving", null, 'This item was changed by another operation. Cancel and reload the latest version before saving.')
         : failure.message);
     } finally { if (token === generation) button.prop('disabled', false); }
   });
@@ -281,8 +303,8 @@
         target.append($('<option>').val(row.id).text((type === 'test-cases' ? 'TC-' : 'REQ-') +
           String(row.keyNo).padStart(3, '0') + ' · ' + row.title));
       });
-      if (!target.children().length) target.append($('<option>').val('').text('No eligible items'));
-      $('#trace-target-label').text(view === 'requirements' ? 'Test case' : 'Requirement');
+      if (!target.children().length) target.append($('<option>').val('').text(t("assets.noEligibleItems", null, 'No eligible items')));
+      $('#trace-target-label').text(view === 'requirements' ? t("assets.testCase", null, 'Test case') : t("assets.requirement", null, 'Requirement'));
       $('#trace-submit').prop('disabled', !eligible.length);
       $('#trace-form').removeClass('d-none');
       target.trigger('focus');

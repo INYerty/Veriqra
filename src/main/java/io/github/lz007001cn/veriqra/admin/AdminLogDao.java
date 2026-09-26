@@ -8,6 +8,6 @@ public interface AdminLogDao {
     Page<SessionActivity> sessionActivity(int page,int size);
     Page<AccessEvent> access(LogFilter filter,int page,int size);
     Page<AuditEvent> audits(LogFilter filter,int page,int size);
-    AdminMetrics metrics();
+    AdminMetrics metrics(AdminTodayWindow today);
     String databaseVersion();
 }

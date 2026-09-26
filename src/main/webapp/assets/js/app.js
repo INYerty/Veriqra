@@ -1,5 +1,6 @@
 (function ($, api) {
   'use strict';
+  const t = window.I18n.t;
   const projectStorageKey = 'veriqra.selectedProjectId';
   const shell = $('#app-shell');
   const splash = $('#bootstrap-screen');
@@ -9,18 +10,20 @@
   let selecting = false;
   let currentUser = null;
   let projects = [];
+  let activeProject = null;
   let selectedId = null;
   let currentView = 'dashboard';
 
   function announce(name, detail) { document.dispatchEvent(new CustomEvent('veriqra:' + name, { detail: detail })); }
-  function setView(view) {
+  function setView(view, silent) {
     currentView = ['dashboard', 'requirements', 'test-cases', 'test-plans', 'runs', 'defects', 'automation'].includes(view) ? view : 'dashboard';
     $('[data-view]').removeClass('active').removeAttr('aria-current');
     $('[data-view="' + currentView + '"]').addClass('active').attr('aria-current', 'page');
-    const labels = { dashboard: ['OVERVIEW', 'Project dashboard', 'Your current quality workspace.'], requirements: ['TEST ASSETS', 'Requirements', 'Manage requirements and their test coverage.'], 'test-cases': ['TEST ASSETS', 'Test cases', 'Maintain current test definitions and steps.'], 'test-plans': ['PLANNING', 'Test plans', 'Define the cases to execute.'], runs: ['EXECUTION', 'Test runs', 'Inspect frozen snapshots and record attempts.'], defects: ['QUALITY', 'Defects', 'Track failures, retests and closure evidence.'], automation: ['AUTOMATION', 'Automation & imports', 'Confirm mappings and import JUnit results.'] };
+    const labels = { dashboard: [t("shell.overview", null, 'OVERVIEW'), t("shell.projectDashboard", null, 'Project dashboard'), t("shell.yourCurrentQualityWorkspace", null, 'Your current quality workspace.')], requirements: [t("shell.testASSETS", null, 'TEST ASSETS'), t("common.requirements", null, 'Requirements'), t("shell.manageRequirementsAndTheirTestCoverage", null, 'Manage requirements and their test coverage.')], 'test-cases': [t("shell.testASSETS", null, 'TEST ASSETS'), t("common.testCases", null, 'Test cases'), t("shell.maintainCurrentTestDefinitionsAndSteps", null, 'Maintain current test definitions and steps.')], 'test-plans': [t("shell.planning", null, 'PLANNING'), t("common.testPlans", null, 'Test plans'), t("shell.defineTheCasesToExecute", null, 'Define the cases to execute.')], runs: [t("shell.execution", null, 'EXECUTION'), t("common.testRuns", null, 'Test runs'), t("shell.inspectFrozenSnapshotsAndRecordAttempts", null, 'Inspect frozen snapshots and record attempts.')], defects: [t("shell.quality", null, 'QUALITY'), t("common.defects", null, 'Defects'), t("shell.trackFailuresRetestsAndClosureEvidence", null, 'Track failures, retests and closure evidence.')], automation: [t("shell.automation", null, 'AUTOMATION'), t("common.automationImports", null, 'Automation & imports'), t("shell.confirmMappingsAndImportJUnitResults", null, 'Confirm mappings and import JUnit results.')] };
     $('#view-eyebrow').text(labels[currentView][0]);
     $('#view-title').text(labels[currentView][1]);
     $('#view-description').text(labels[currentView][2]);
+    document.title = labels[currentView][1] + ' · Veriqra';
     $('#project-dashboard').toggleClass('d-none', currentView !== 'dashboard' || !selectedId);
     $('#asset-workspace').toggleClass('d-none', !['requirements', 'test-cases'].includes(currentView) || !selectedId);
     $('#execution-workspace').toggleClass('d-none', !['test-plans', 'runs'].includes(currentView) || !selectedId);
@@ -28,7 +31,7 @@
     $('#automation-workspace').toggleClass('d-none', currentView !== 'automation' || !selectedId);
     $('#sidebar').removeClass('open');
     $('#sidebar-toggle').attr('aria-expanded', 'false');
-    announce('view', { view: currentView, projectId: selectedId });
+    if (!silent) announce('view', { view: currentView, projectId: selectedId });
   }
 
   function savedProject() { try { return sessionStorage.getItem(projectStorageKey); } catch (_) { return null; } }
@@ -38,12 +41,14 @@
   function clearProjectContext() {
     announce('project', { project: null });
     projects = [];
+    activeProject = null;
     selectedId = null;
-    picker.empty().append($('<option>').val('').text('Loading projects…')).prop('disabled', true);
+    picker.empty().append($('<option>').val('').text(t("shell.loadingProjects", null, 'Loading projects…'))).prop('disabled', true);
     $('#project-dashboard, #empty-projects, #asset-workspace, #execution-workspace, #defect-workspace, #automation-workspace').addClass('d-none');
     $('#project-key, #project-title, #project-description, #project-status, #account-name').text('');
   }
   function showProject(project) {
+    activeProject = project;
     $('#empty-projects').addClass('d-none');
     $('#project-dashboard').toggleClass('d-none', currentView !== 'dashboard');
     $('#asset-workspace').toggleClass('d-none', !['requirements', 'test-cases'].includes(currentView));
@@ -52,12 +57,12 @@
     $('#automation-workspace').toggleClass('d-none', currentView !== 'automation');
     $('#project-title').text(project.name);
     $('#project-key').text(project.projectKey);
-    $('#project-description').text(project.description || 'No project description has been added.');
-    $('#project-status').text(project.status);
+    $('#project-description').text(project.description || t("shell.noProjectDescriptionHasBeenAdded", null, 'No project description has been added.'));
+    $('#project-status').text(window.I18n.enumLabel(project.status));
     $('#project-hero').toggleClass('is-archived', project.status !== 'ACTIVE');
     $('.project-monogram').text((project.name || 'V').trim().charAt(0).toUpperCase());
     $('#account-name').text(currentUser.username);
-    $('#access-summary').text('Verified project access');
+    $('#access-summary').text(t("shell.verifiedProjectAccess", null, 'Verified project access'));
   }
   function chooseProject(id) {
     if (!projects.some(function (p) { return String(p.id) === String(id); })) return;
@@ -97,7 +102,7 @@
           selectedId = null;
           announce('project', { project: null });
           rememberProject(null);
-          picker.append($('<option>').val('').text('No projects available'));
+          picker.append($('<option>').val('').text(t("shell.noProjectsAvailable", null, 'No projects available')));
           $('#project-dashboard, #asset-workspace, #execution-workspace, #defect-workspace, #automation-workspace').addClass('d-none');
           $('#empty-projects').removeClass('d-none');
           return;
@@ -131,7 +136,7 @@
       .fail(function (failure) {
         if (failure.status !== 401) {
           splash.empty().append($('<span>').text(failure.message));
-          splash.append($('<button type="button" class="btn btn-outline-primary btn-sm">').text('Retry').on('click', bootstrap));
+          splash.append($('<button type="button" class="btn btn-outline-primary btn-sm">').text(t("common.retry", null, 'Retry')).on('click', bootstrap));
         }
       })
       .always(function () { loading = false; });
@@ -163,16 +168,26 @@
     const opened = $('#sidebar').toggleClass('open').hasClass('open');
     $(this).attr('aria-expanded', String(opened));
   });
-  ['Requirements', 'Test cases', 'Test plans', 'Runs', 'Defects', 'Automation & imports'].forEach(function (name, index) {
-    const card = $('<div class="workflow-card">');
-    card.append($('<span class="workflow-number">').text(String(index + 1).padStart(2, '0')));
-    card.append($('<strong>').text(name));
-    card.append($('<span class="workflow-later">').text('Available in the sidebar'));
-    $('#workflow').append(card);
+  function renderWorkflow() {
+    $('#workflow').empty();
+    [t('common.requirements'), t('common.testCases'), t('common.testPlans'), t('common.runs'),
+      t('common.defects'), t('common.automationImports')].forEach(function (name, index) {
+      const card = $('<div class="workflow-card">');
+      card.append($('<span class="workflow-number">').text(String(index + 1).padStart(2, '0')));
+      card.append($('<strong>').text(name));
+      card.append($('<span class="workflow-later">').text(t("shell.availableInTheSidebar", null, 'Available in the sidebar')));
+      $('#workflow').append(card);
+    });
+  }
+  document.addEventListener('veriqra:localechange', function () {
+    renderWorkflow(); setView(currentView, true);
+    if (activeProject) showProject(activeProject);
   });
   // pageshow also runs when navigating Back to a page restored from the back/forward cache.
   $(window).on('pageshow', function (event) {
-    if (!currentUser || (event.originalEvent && event.originalEvent.persisted)) bootstrap();
+    if (!currentUser || (event.originalEvent && event.originalEvent.persisted)) {
+      window.I18n.init().then(function () { renderWorkflow(); bootstrap(); });
+    }
   });
   $(window).on('pagehide', function () {
     // Prevent a back/forward cache snapshot from displaying old project data before revalidation.

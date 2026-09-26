@@ -3,44 +3,46 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Sign in · Veriqra</title>
+  <title data-i18n="auth.signInVeriqra">Sign in · Veriqra</title>
   <link rel="stylesheet" href="assets/vendor/bootstrap-5.3.8.min.css">
   <link rel="stylesheet" href="assets/css/app.css">
   <script defer src="assets/vendor/jquery-3.7.1.min.js"></script>
+  <script defer src="assets/js/i18n.js"></script>
   <script defer src="assets/js/api.js"></script>
   <script defer src="assets/js/login.js"></script>
 </head>
 <body class="login-page">
+  <div class="locale-control login-locale"><label for="locale-switch" data-i18n="common.language">Language</label><select id="locale-switch" data-locale-switch class="form-select form-select-sm" aria-label="Language" data-i18n-aria-label="common.language"><option value="en">English</option><option value="zh-CN">简体中文</option></select></div>
   <main class="login-layout container-fluid">
-    <section class="login-intro" aria-label="About Veriqra">
+    <section class="login-intro" aria-label="About Veriqra" data-i18n-aria-label="auth.aboutVeriqra">
       <div class="brand-mark" aria-hidden="true">V<span>.</span></div>
-      <p class="eyebrow">QUALITY WORKSPACE</p>
-      <h1>Make quality<br><span>traceable.</span></h1>
-      <p class="intro-copy">Requirements, test execution, and defects in one connected workspace.</p>
+      <p class="eyebrow" data-i18n="auth.qualityWORKSPACE">QUALITY WORKSPACE</p>
+      <h1><span data-i18n="auth.makeQuality">Make quality</span><br><span data-i18n="auth.traceable">traceable.</span></h1>
+      <p class="intro-copy" data-i18n="auth.requirementsTestExecutionAndDefectsInOneConnectedWorkspace">Requirements, test execution, and defects in one connected workspace.</p>
       <div class="intro-rule"></div>
-      <p class="intro-caption">Veriqra · Software Test &amp; Quality Management Platform</p>
+      <p class="intro-caption" data-i18n="auth.veriqraSoftwareTestQualityManagementPlatform">Veriqra · Software Test &amp; Quality Management Platform</p>
     </section>
     <section class="login-panel" aria-labelledby="login-title">
       <div class="login-card">
-        <p class="eyebrow">WELCOME BACK</p>
-        <h2 id="login-title">Sign in to Veriqra</h2>
-        <p class="text-secondary mb-4">Enter your account details to continue.</p>
+        <p class="eyebrow" data-i18n="auth.welcomeBACK">WELCOME BACK</p>
+        <h2 id="login-title" data-i18n="auth.signInToVeriqra">Sign in to Veriqra</h2>
+        <p class="text-secondary mb-4" data-i18n="auth.enterYourAccountDetailsToContinue">Enter your account details to continue.</p>
         <form id="login-form" novalidate>
           <div class="mb-3">
-            <label class="form-label" for="username">Username</label>
+            <label class="form-label" for="username" data-i18n="common.username">Username</label>
             <input class="form-control form-control-lg" id="username" name="username" autocomplete="username" maxlength="64" required autofocus>
           </div>
           <div class="mb-3">
-            <label class="form-label" for="password">Password</label>
+            <label class="form-label" for="password" data-i18n="common.password">Password</label>
             <input class="form-control form-control-lg" id="password" name="password" type="password" autocomplete="current-password" required>
           </div>
           <p id="login-error" class="alert alert-danger d-none" role="alert" aria-live="assertive"></p>
           <button id="login-submit" class="btn btn-primary btn-lg w-100" type="submit">
-            <span class="button-label">Sign in</span>
+            <span class="button-label" data-i18n="common.signIn">Sign in</span>
             <span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
           </button>
         </form>
-        <p class="login-footnote">Access is managed by your platform administrator.</p>
+        <p class="login-footnote" data-i18n="auth.accessIsManagedByYourPlatformAdministrator">Access is managed by your platform administrator.</p>
       </div>
     </section>
   </main>

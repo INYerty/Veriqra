@@ -55,6 +55,7 @@ public final class WarDeploymentSmoke {
                     throw new AssertionError("Unexpected protected response status: " + response.statusCode());
                 }
                 for (String path : new String[]{"/", "/index.html", "/login.html", "/assets/css/app.css",
+                        "/assets/js/i18n.js", "/i18n/en.json", "/i18n/zh-CN.json",
                         "/assets/js/api.js", "/assets/js/app.js", "/assets/js/login.js", "/assets/js/test-assets.js", "/assets/js/execution.js",
                         "/assets/js/defects.js", "/assets/js/automation-imports.js",
                         "/admin/index.html", "/admin/users.html", "/admin/credits.html",
@@ -72,7 +73,7 @@ public final class WarDeploymentSmoke {
                     }
                     String type = resource.headers().firstValue("Content-Type").orElse("");
                     String expected = path.endsWith(".css") ? "text/css" : path.endsWith(".js")
-                            ? "application/javascript" : "text/html";
+                            ? "application/javascript" : path.endsWith(".json") ? "application/json" : "text/html";
                     if (!type.startsWith(expected)) throw new AssertionError("Wrong MIME type for " + path + ": " + type);
                 }
                 for (String path : new String[]{"/WEB-INF/web.xml", "/missing-resource.css"}) {

@@ -1,5 +1,6 @@
 (function ($, api) {
   'use strict';
+  const t = window.I18n.t;
   // app.js owns the session, selected project and view. Every asynchronous render is scoped to its generation.
   let projectId = null;
   let view = 'dashboard';
@@ -8,12 +9,13 @@
   let runCaseId = null;
   let editing = false;
   let pendingAttempt = null;
+  let caseOptions = [];
   const active = function () { return view === 'test-plans' || view === 'runs'; };
   const valid = function (token) { return token === generation && !!projectId && active(); };
   const base = function (resource) { return 'projects/' + encodeURIComponent(projectId) + '/' + resource; };
   const path = function (id) { return base(view === 'test-plans' ? 'test-plans' : 'runs') + '/' + encodeURIComponent(id); };
-  const label = function (value) { return String(value || '').replaceAll('_', ' '); };
-  const date = function (value) { return value ? String(value).replace('T', ' ') : '—'; };
+  const label = function (value) { return window.I18n.enumLabel(value); };
+  const date = function (value) { return window.I18n.formatDateTime(value); };
   const planKey = function (plan) { return 'TP-' + String(plan.keyNo).padStart(3, '0'); };
 
   function notice(message, error) {
@@ -24,7 +26,7 @@
   function attemptError(message) { $('#execution-attempt-error').text(message || '').toggleClass('d-none', !message); }
   function conflict(failure) {
     return failure.status === 409
-      ? 'This record changed or cannot enter the requested state. Reload its latest details before trying again.'
+      ? t('execution.conflict', null, 'This record changed or cannot enter the requested state. Reload its latest details before trying again.')
       : failure.message;
   }
   function badge(status) {
@@ -40,6 +42,7 @@
     runCaseId = null;
     editing = false;
     pendingAttempt = null;
+    caseOptions = [];
     $('#execution-list, #execution-detail, #execution-actions, #execution-items, #execution-case-selector, #execution-snapshot, #execution-history').empty();
     $('#execution-list-status, #execution-items-status, #execution-history-status').text('');
     $('#execution-list-panel, #execution-detail-panel, #execution-form, #execution-case-panel').addClass('d-none');
@@ -54,7 +57,7 @@
   }
   function caseSelector(rows, chosen) {
     const target = $('#execution-case-selector').empty();
-    if (!rows.length) { target.append($('<p class="text-secondary">').text('No eligible test cases in this project.')); return; }
+    if (!rows.length) { target.append($('<p class="text-secondary">').text(t("execution.noEligibleTestCasesInThisProject", null, 'No eligible test cases in this project.'))); return; }
     rows.forEach(function (row) {
       const id = 'execution-select-case-' + row.id;
       target.append($('<div class="form-check">').append(
@@ -71,22 +74,22 @@
     const token = ++generation;
     detail = null; runCaseId = null; pendingAttempt = null;
     panels('list'); notice('');
-    $('#execution-list-title').text(view === 'test-plans' ? 'Test plans' : 'Test runs');
-    $('#execution-new').text(view === 'test-plans' ? 'Create plan' : 'Create run');
-    $('#execution-list').empty(); $('#execution-list-status').text('Loading…');
+    $('#execution-list-title').text(view === 'test-plans' ? t("common.testPlans", null, 'Test plans') : t("common.testRuns", null, 'Test runs'));
+    $('#execution-new').text(view === 'test-plans' ? t("execution.createPlan", null, 'Create plan') : t("execution.createRun", null, 'Create run'));
+    $('#execution-list').empty(); $('#execution-list-status').text(t("common.loading", null, 'Loading…'));
     try {
       const rows = await api.get(base(view === 'test-plans' ? 'test-plans' : 'runs'));
       if (!valid(token)) return;
-      $('#execution-list-status').text(rows.length ? rows.length + ' item(s)' : 'No items yet.');
+      $('#execution-list-status').text(rows.length ? t('execution.itemCount', { count: window.I18n.formatNumber(rows.length) }, '{count} item(s)') : t("execution.noItemsYet", null, 'No items yet.'));
       rows.forEach(function (row) {
         const title = view === 'test-plans' ? planKey(row) + ' · ' + row.name : row.name;
         const meta = $('<div class="asset-list-meta">').append(badge(row.status),
-          $('<span>').text(view === 'runs' ? (row.testPlanId == null ? 'Ad-hoc' : 'Plan-based') : 'v' + row.version),
+          $('<span>').text(view === 'runs' ? (row.testPlanId == null ? t("execution.adHoc", null, 'Ad-hoc') : t("execution.planBased", null, 'Plan-based')) : 'v' + row.version),
           $('<small>').text(date(row.createdAt)));
         $('#execution-list').append($('<div class="asset-list-row">').append(
           $('<div class="asset-list-summary">').append($('<strong>').text(title),
-            $('<p class="mb-1 text-secondary">').text(view === 'test-plans' ? (row.description || 'No description') : (row.environment || 'No environment'))),
-          meta, $('<button type="button" class="btn btn-outline-primary btn-sm">').text('View ' + title)
+            $('<p class="mb-1 text-secondary">').text(view === 'test-plans' ? (row.description || t("common.noDescription", null, 'No description')) : (row.environment || t("execution.noEnvironment", null, 'No environment')))),
+          meta, $('<button type="button" class="btn btn-outline-primary btn-sm">').text(t('execution.viewItem', { title: title }, 'View {title}'))
             .on('click', function () { openDetail(row.id); })));
       });
     } catch (failure) { if (valid(token)) { $('#execution-list-status').text(''); notice(failure.message, true); } }
@@ -96,7 +99,7 @@
     const token = ++generation;
     detail = null; runCaseId = null; pendingAttempt = null;
     panels('detail'); notice('');
-    $('#execution-detail-title').text('Loading…');
+    $('#execution-detail-title').text(t("common.loading", null, 'Loading…'));
     $('#execution-detail, #execution-actions, #execution-items').empty();
     $('#execution-items-status').text('');
     try {
@@ -111,38 +114,40 @@
     const plan = current.plan;
     $('#execution-detail-title').text(planKey(plan) + ' · ' + plan.name);
     $('#execution-detail').append($('<dl class="asset-fields">').append(
-      field('Description', plan.description), field('Status', label(plan.status)),
-      field('Version', plan.version), field('Created', date(plan.createdAt)), field('Updated', date(plan.updatedAt))));
-    $('#execution-items-title').text('Included test cases (' + current.testCaseIds.length + ')');
-    $('#execution-items-status').text('Loading current case labels…');
+      field(t("common.description", null, 'Description'), plan.description), field(t("common.status", null, 'Status'), label(plan.status)),
+      field(t("common.version", null, 'Version'), plan.version), field(t("common.created", null, 'Created'), date(plan.createdAt)), field(t("common.updated", null, 'Updated'), date(plan.updatedAt))));
+    $('#execution-items-title').text(t('execution.includedCases', { count: window.I18n.formatNumber(current.testCaseIds.length) }, 'Included test cases ({count})'));
+    $('#execution-items-status').text(t('execution.loadingCaseLabels', null, 'Loading current case labels…'));
     const cases = await api.get(base('test-cases'));
     if (!valid(token) || detail !== current) return;
     $('#execution-items-status').text('');
     const byId = new Map(cases.map(function (item) { return [String(item.id), item]; }));
-    if (!current.testCaseIds.length) $('#execution-items').append($('<p class="text-secondary">').text('No cases in this plan yet.'));
+    if (!current.testCaseIds.length) $('#execution-items').append($('<p class="text-secondary">').text(t("execution.noCasesInThisPlanYet", null, 'No cases in this plan yet.')));
     current.testCaseIds.forEach(function (id) {
       const item = byId.get(String(id));
-      const title = item ? 'TC-' + String(item.keyNo).padStart(3, '0') + ' · ' + item.title : 'Case #' + id;
-      const row = $('<div class="asset-link-row">').append($('<span>').text(title), item ? badge(item.status) : $('<span>').text('Unavailable'));
-      if (plan.status !== 'ARCHIVED') row.append($('<button type="button" class="btn btn-outline-danger btn-sm">').text('Remove from plan')
+      const title = item ? 'TC-' + String(item.keyNo).padStart(3, '0') + ' · ' + item.title
+        : t('execution.caseNumber', { id: id }, 'Case #{id}');
+      const row = $('<div class="asset-link-row">').append($('<span>').text(title), item ? badge(item.status) : $('<span>').text(t("common.unavailable", null, 'Unavailable')));
+      if (plan.status !== 'ARCHIVED') row.append($('<button type="button" class="btn btn-outline-danger btn-sm">').text(t("execution.removeFromPlan", null, 'Remove from plan'))
         .on('click', function () { changeMember(plan, id, title, 'remove'); }));
       $('#execution-items').append(row);
     });
     if (plan.status === 'ARCHIVED') return;
-    $('#execution-actions').append($('<button type="button" class="btn btn-outline-primary">').text('Edit plan')
+    $('#execution-actions').append($('<button type="button" class="btn btn-outline-primary">').text(t("execution.editPlan", null, 'Edit plan'))
       .on('click', function () { showForm(true); }));
-    $('#execution-actions').append($('<button type="button" class="btn btn-outline-danger">').text('Archive plan')
+    $('#execution-actions').append($('<button type="button" class="btn btn-outline-danger">').text(t("execution.archivePlan", null, 'Archive plan'))
       .on('click', function () { archivePlan(plan); }));
     const available = cases.filter(function (item) { return item.status !== 'ARCHIVED' && !current.testCaseIds.includes(item.id); });
     if (available.length) {
-      const select = $('<select class="form-select execution-inline-select" aria-label="Test case to add">');
+      const select = $('<select class="form-select execution-inline-select">').attr('aria-label', t('execution.testCaseToAdd', null, 'Test case to add'));
       available.forEach(function (item) { select.append($('<option>').val(item.id).text('TC-' + String(item.keyNo).padStart(3, '0') + ' · ' + item.title + ' · ' + label(item.status))); });
-      $('#execution-actions').append(select, $('<button type="button" class="btn btn-outline-primary">').text('Add case to plan')
+      $('#execution-actions').append(select, $('<button type="button" class="btn btn-outline-primary">').text(t("execution.addCaseToPlan", null, 'Add case to plan'))
         .on('click', function () { changeMember(plan, Number(select.val()), select.find(':selected').text(), 'add'); }));
     }
   }
   async function changeMember(plan, caseId, title, action) {
-    if (action === 'remove' && !window.confirm('Remove "' + title + '" from plan "' + plan.name + '"?')) return;
+    if (action === 'remove' && !window.confirm(t('execution.removeFromPlanConfirm',
+      { title: title, plan: plan.name }, 'Remove "{title}" from plan "{plan}"?'))) return;
     const token = generation;
     $('#execution-actions button, #execution-items button').prop('disabled', true);
     try {
@@ -152,7 +157,8 @@
     finally { if (valid(token)) $('#execution-actions button, #execution-items button').prop('disabled', false); }
   }
   async function archivePlan(plan) {
-    if (!window.confirm('Archive plan "' + plan.name + '"? It will become read-only.')) return;
+    if (!window.confirm(t('execution.archivePlanConfirm', { plan: plan.name },
+      'Archive plan "{plan}"? It will become read-only.'))) return;
     const token = generation;
     $('#execution-actions button').prop('disabled', true);
     try { await api.post(path(plan.id) + '/archive', { expectedVersion: plan.version }); if (valid(token)) await openDetail(plan.id); }
@@ -163,26 +169,28 @@
     const run = current.run;
     $('#execution-detail-title').text(run.name);
     $('#execution-detail').append($('<dl class="asset-fields">').append(
-      field('Status', label(run.status)), field('Source', run.testPlanId == null ? 'Ad-hoc' : 'Plan #' + run.testPlanId),
-      field('Environment', run.environment), field('Build', run.buildVersion),
-      field('Created', date(run.createdAt)), field('Ended', date(run.endedAt))));
-    $('#execution-items-title').text('Run case snapshots (' + current.cases.length + ')');
+      field(t("common.status", null, 'Status'), label(run.status)), field(t("execution.source", null, 'Source'), run.testPlanId == null ? t("execution.adHoc", null, 'Ad-hoc') : t('execution.planNumber', { number: run.testPlanId }, 'Plan #{number}')),
+      field(t("execution.environment", null, 'Environment'), run.environment), field(t("execution.build", null, 'Build'), run.buildVersion),
+      field(t("common.created", null, 'Created'), date(run.createdAt)), field(t("execution.ended", null, 'Ended'), date(run.endedAt))));
+    $('#execution-items-title').text(t('execution.runCaseSnapshots', { count: window.I18n.formatNumber(current.cases.length) }, 'Run case snapshots ({count})'));
     current.cases.forEach(function (item) {
       $('#execution-items').append($('<div class="asset-list-row">').append(
         $('<div class="asset-list-summary">').append($('<strong>').text(item.snapshotTitle),
-          $('<p class="mb-1 text-secondary">').text('Frozen case #' + item.testCaseId + ' · captured ' + date(item.capturedAt))),
-        badge(item.currentOutcome), $('<button type="button" class="btn btn-outline-primary btn-sm">').text('View snapshot and attempts')
+          $('<p class="mb-1 text-secondary">').text(t('execution.frozenCaseCaptured',
+            { id: item.testCaseId, date: date(item.capturedAt) }, 'Frozen case #{id} · captured {date}'))),
+        badge(item.currentOutcome), $('<button type="button" class="btn btn-outline-primary btn-sm">').text(t("execution.viewSnapshotAndAttempts", null, 'View snapshot and attempts'))
           .on('click', function () { openCase(item.runCaseId); })));
     });
     if (run.status === 'IN_PROGRESS') {
-      [['Complete run', 'complete'], ['Cancel run', 'cancel']].forEach(function (entry) {
+      [[t("execution.completeRun", null, 'Complete run'), 'complete'], [t("execution.cancelRun", null, 'Cancel run'), 'cancel']].forEach(function (entry) {
         $('#execution-actions').append($('<button type="button" class="btn btn-outline-secondary">').text(entry[0])
           .on('click', function () { finishRun(run, entry[1]); }));
       });
     }
   }
   async function finishRun(run, action) {
-    if (!window.confirm((action === 'complete' ? 'Complete' : 'Cancel') + ' run "' + run.name + '"?')) return;
+    if (!window.confirm(t(action === 'complete' ? 'execution.completeRunConfirm' : 'execution.cancelRunConfirm',
+      { name: run.name }, action === 'complete' ? 'Complete run "{name}"?' : 'Cancel run "{name}"?'))) return;
     const token = generation;
     $('#execution-actions button').prop('disabled', true);
     try { await api.post(path(run.id) + '/' + action, { expectedVersion: run.version }); if (valid(token)) await openDetail(run.id); }
@@ -192,14 +200,14 @@
   function snapshot(item) {
     const target = $('#execution-snapshot').empty();
     target.append($('<dl class="asset-fields">').append(
-      field('Title at capture', item.snapshotTitle), field('Priority at capture', label(item.snapshotPriority)),
-      field('Description at capture', item.snapshotDescription), field('Preconditions at capture', item.snapshotPreconditions),
-      field('Captured', date(item.capturedAt)), field('Current outcome', label(item.currentOutcome))));
-    target.append($('<h3 class="fs-5 mt-3">').text('Snapshot steps'));
+      field(t("execution.titleAtCapture", null, 'Title at capture'), item.snapshotTitle), field(t("execution.priorityAtCapture", null, 'Priority at capture'), label(item.snapshotPriority)),
+      field(t("execution.descriptionAtCapture", null, 'Description at capture'), item.snapshotDescription), field(t("execution.preconditionsAtCapture", null, 'Preconditions at capture'), item.snapshotPreconditions),
+      field(t("execution.captured", null, 'Captured'), date(item.capturedAt)), field(t("execution.currentOutcome", null, 'Current outcome'), label(item.currentOutcome))));
+    target.append($('<h3 class="fs-5 mt-3">').text(t("execution.snapshotSteps", null, 'Snapshot steps')));
     item.steps.forEach(function (step) {
-      target.append($('<div class="asset-step">').append($('<strong>').text('Step ' + step.stepOrder),
-        $('<div>').append($('<span class="text-secondary">').text('Action: '), document.createTextNode(step.action)),
-        $('<div>').append($('<span class="text-secondary">').text('Expected: '), document.createTextNode(step.expectedResult))));
+      target.append($('<div class="asset-step">').append($('<strong>').text(t('assets.stepNumber', { number: step.stepOrder }, 'Step {number}')),
+        $('<div>').append($('<span class="text-secondary">').text(t("execution.action", null, 'Action: ')), document.createTextNode(step.action)),
+        $('<div>').append($('<span class="text-secondary">').text(t("execution.expected", null, 'Expected: ')), document.createTextNode(step.expectedResult))));
     });
   }
   async function openCase(id) {
@@ -208,30 +216,31 @@
     const token = ++generation;
     runCaseId = id; pendingAttempt = null;
     panels('case'); notice(''); attemptError('');
-    $('#execution-case-title').text('Loading snapshot…');
+    $('#execution-case-title').text(t('execution.loadingSnapshot', null, 'Loading snapshot…'));
     $('#execution-snapshot, #execution-history').empty();
-    $('#execution-history-status').text('Loading attempt history…');
+    $('#execution-history-status').text(t('execution.loadingAttemptHistory', null, 'Loading attempt history…'));
     $('#execution-attempt-form').addClass('d-none');
     try {
       const current = await api.get(path(runId));
       if (!valid(token) || runCaseId !== id) return;
       const item = current.cases.find(function (row) { return row.runCaseId === id; });
-      if (!item) throw { message: 'Run case is no longer available.' };
+      if (!item) throw { message: t("execution.runCaseIsNoLongerAvailable", null, 'Run case is no longer available.') };
       const history = await api.get(path(runId) + '/cases/' + encodeURIComponent(id) + '/attempts');
       if (!valid(token) || runCaseId !== id) return;
       detail = current;
-      $('#execution-case-title').text('Snapshot · ' + item.snapshotTitle);
+      $('#execution-case-title').text(t('execution.snapshotTitle', { title: item.snapshotTitle }, 'Snapshot · {title}'));
       snapshot(item);
       const target = $('#execution-history').empty();
-      $('#execution-history-status').text(history.length ? history.length + ' recorded attempt(s)' : 'No attempts yet.');
+      $('#execution-history-status').text(history.length ? t('execution.attemptCount', { count: window.I18n.formatNumber(history.length) }, '{count} recorded attempt(s)') : t("execution.noAttemptsYet", null, 'No attempts yet.'));
       history.forEach(function (attempt, index) {
         const card = $('<div class="execution-attempt">').append(
-          $('<div class="asset-panel-heading mb-1">').append($('<strong>').text('Attempt #' + attempt.attemptNo + (index === history.length - 1 ? ' · latest' : '')), badge(attempt.outcome)),
-          $('<dl class="asset-fields mb-0">').append(field('Executed', date(attempt.executedAt)), field('Actor ID', attempt.executedBy),
-            field('Duration (ms)', attempt.durationMs), field('Actual result / comment', attempt.comment), field('Failure message', attempt.failureMessage)));
+          $('<div class="asset-panel-heading mb-1">').append($('<strong>').text(t(index === history.length - 1 ? 'execution.latestAttempt' : 'execution.attemptNumber',
+            { number: attempt.attemptNo }, index === history.length - 1 ? 'Attempt #{number} · latest' : 'Attempt #{number}')), badge(attempt.outcome)),
+          $('<dl class="asset-fields mb-0">').append(field(t("execution.executed", null, 'Executed'), date(attempt.executedAt)), field(t("execution.actorID", null, 'Actor ID'), attempt.executedBy),
+            field(t("execution.durationMs", null, 'Duration (ms)'), attempt.durationMs), field(t("execution.actualResultComment", null, 'Actual result / comment'), attempt.comment), field(t("execution.failureMessage", null, 'Failure message'), attempt.failureMessage)));
         target.append(card);
         if (attempt.outcome === 'FAIL') card.append($('<button type="button" class="btn btn-outline-danger btn-sm mt-2">')
-          .text('Create defect from this FAIL').on('click', function () {
+          .text(t("execution.createDefectFromThisFAIL", null, 'Create defect from this FAIL')).on('click', function () {
             document.dispatchEvent(new CustomEvent('veriqra:failure-evidence', { detail: {
               projectId: projectId, runId: runId, runCaseId: id, attemptId: attempt.id
             } }));
@@ -241,7 +250,7 @@
       $('#execution-attempt-form').toggleClass('d-none', current.run.status !== 'IN_PROGRESS');
       $('#execution-attempt-form')[0].reset();
       $('#execution-failure-wrap').addClass('d-none');
-      $('#execution-submit').prop('disabled', false).text(history.length ? 'Record retest as new attempt' : 'Record new attempt');
+      $('#execution-submit').prop('disabled', false).text(history.length ? t("execution.recordRetestAsNewAttempt", null, 'Record retest as new attempt') : t("execution.recordNewAttempt", null, 'Record new attempt'));
     } catch (failure) { if (valid(token)) { $('#execution-history-status').text(''); notice(failure.message, true); } }
   }
 
@@ -252,7 +261,7 @@
     panels('form'); notice(''); formError('');
     $('#execution-form')[0].reset();
     $('#execution-save').prop('disabled', true);
-    $('#execution-form-title').text(view === 'test-plans' ? (update ? 'Edit plan' : 'Create plan') : 'Create run');
+    $('#execution-form-title').text(view === 'test-plans' ? (update ? t("execution.editPlan", null, 'Edit plan') : t("execution.createPlan", null, 'Create plan')) : t("execution.createRun", null, 'Create run'));
     $('#execution-description-wrap').toggleClass('d-none', view !== 'test-plans');
     $('#execution-status-wrap').toggleClass('d-none', view !== 'test-plans' || !update);
     $('#execution-run-fields').toggleClass('d-none', view !== 'runs');
@@ -265,14 +274,15 @@
       if (!update) {
         const cases = await api.get(base('test-cases'));
         if (!valid(token)) return;
-        caseSelector(cases.filter(function (item) { return view === 'test-plans' ? item.status !== 'ARCHIVED' : item.status === 'READY'; }), []);
+        caseOptions = cases.filter(function (item) { return view === 'test-plans' ? item.status !== 'ARCHIVED' : item.status === 'READY'; });
+        caseSelector(caseOptions, []);
         if (view === 'runs') {
           const plans = await api.get(base('test-plans'));
           if (!valid(token)) return;
           plans.filter(function (plan) { return plan.status === 'READY'; }).forEach(function (plan) {
             $('#execution-plan').append($('<option>').val(plan.id).text(planKey(plan) + ' · ' + plan.name));
           });
-          if (!$('#execution-plan option').length) $('#execution-plan').append($('<option>').val('').text('No READY plan available'));
+          if (!$('#execution-plan option').length) $('#execution-plan').append($('<option>').val('').text(t("execution.noREADYPlanAvailable", null, 'No READY plan available')));
           $('#execution-origin').val($('#execution-plan option[value!=""]').length ? 'plan' : 'adhoc');
           updateRunOrigin();
         }
@@ -295,6 +305,26 @@
     const next = event.originalEvent.detail.view;
     if (next !== view) { reset(); view = next; }
     if (projectId && active()) list();
+  });
+  document.addEventListener('veriqra:localechange', async function () {
+    if (!projectId || !active()) return;
+    if (!$('#execution-form').hasClass('d-none')) {
+      $('#execution-form-title').text(view === 'test-plans'
+        ? t(editing ? 'execution.editPlan' : 'execution.createPlan') : t('execution.createRun'));
+      if (caseOptions.length) caseSelector(caseOptions, selectedCases().map(String));
+    } else if (!$('#execution-case-panel').hasClass('d-none') && runCaseId != null) {
+      const values = $('#execution-attempt-form').find('input,select,textarea').map(function () {
+        return { id: this.id, value: this.value };
+      }).get();
+      const retry = pendingAttempt;
+      const id = runCaseId;
+      await openCase(id);
+      values.forEach(function (entry) { if (entry.id) $('#' + entry.id).val(entry.value); });
+      $('#execution-outcome').trigger('change');
+      pendingAttempt = retry;
+    } else if (detail && !$('#execution-detail-panel').hasClass('d-none')) {
+      await openDetail(view === 'test-plans' ? detail.plan.id : detail.run.id);
+    } else list();
   });
   let requestedRun = null;
   $(document).on('veriqra:open-run', function (event) {
@@ -325,7 +355,7 @@
     const button = $('#execution-save').prop('disabled', true);
     formError('');
     const name = $('#execution-name').val().trim();
-    if (!name) { formError('Name is required.'); button.prop('disabled', false); return; }
+    if (!name) { formError(t("execution.nameIsRequired", null, 'Name is required.')); button.prop('disabled', false); return; }
     let body;
     if (view === 'test-plans') {
       body = { name: name, description: $('#execution-description').val().trim() || null };
@@ -335,11 +365,11 @@
       body = { name: name, environment: $('#execution-environment').val().trim() || null,
         buildVersion: $('#execution-build').val().trim() || null };
       if ($('#execution-origin').val() === 'plan') {
-        if (!$('#execution-plan').val()) { formError('Select a READY plan.'); button.prop('disabled', false); return; }
+        if (!$('#execution-plan').val()) { formError(t("execution.selectAREADYPlan", null, 'Select a READY plan.')); button.prop('disabled', false); return; }
         body.testPlanId = Number($('#execution-plan').val());
       } else {
         body.testCaseIds = selectedCases();
-        if (!body.testCaseIds.length) { formError('Select at least one READY test case.'); button.prop('disabled', false); return; }
+        if (!body.testCaseIds.length) { formError(t("execution.selectAtLeastOneREADYTestCase", null, 'Select at least one READY test case.')); button.prop('disabled', false); return; }
       }
     }
     try {
@@ -357,7 +387,7 @@
     const body = { outcome: $('#execution-outcome').val(), durationMs: $('#execution-duration').val() === '' ? null : Number($('#execution-duration').val()),
       comment: $('#execution-comment').val().trim() || null,
       failureMessage: $('#execution-outcome').val() === 'FAIL' ? ($('#execution-failure').val().trim() || null) : null };
-    if (body.durationMs != null && (!Number.isSafeInteger(body.durationMs) || body.durationMs < 0)) { attemptError('Duration must be a non-negative whole number.'); return; }
+    if (body.durationMs != null && (!Number.isSafeInteger(body.durationMs) || body.durationMs < 0)) { attemptError(t("execution.durationMustBeANonNegativeWholeNumber", null, 'Duration must be a non-negative whole number.')); return; }
     const signature = JSON.stringify(body);
     if (!pendingAttempt || pendingAttempt.signature !== signature) pendingAttempt = { signature: signature, body: Object.assign({}, body, { submissionKey: crypto.randomUUID() }) };
     const button = $('#execution-submit').prop('disabled', true);
@@ -365,7 +395,7 @@
     try {
       await api.post(path(runId) + '/cases/' + encodeURIComponent(runCaseId) + '/attempts', pendingAttempt.body);
       if (valid(token)) { pendingAttempt = null; await openCase(runCaseId); }
-    } catch (failure) { if (valid(token)) attemptError(conflict(failure) + ' Retrying unchanged values reuses this attempt key.'); }
+    } catch (failure) { if (valid(token)) attemptError(conflict(failure) + ' ' + t('execution.retryAttemptKey', null, 'Retrying unchanged values reuses this attempt key.')); }
     finally { if (valid(token)) button.prop('disabled', false); }
   });
 })(jQuery, window.VeriqraApi);

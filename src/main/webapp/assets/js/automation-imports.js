@@ -1,5 +1,6 @@
 (function ($, api) {
   'use strict';
+  const t = window.I18n.t;
   const limit = 5 * 1024 * 1024;
   let projectId = null;
   let view = 'dashboard';
@@ -9,6 +10,8 @@
   let preview = null;
   let pendingImport = null;
   let importBusy = false;
+  let importResult = null;
+  let identityRows = null;
   const active = function () { return view === 'automation' && !!projectId; };
   const valid = function (token) { return active() && token === generation; };
   const base = function (resource) { return 'projects/' + encodeURIComponent(projectId) + '/' + resource; };
@@ -16,7 +19,7 @@
   const option = function (value, text) { return $('<option>').val(String(value)).text(text); };
   const badge = function (state) {
     const colors = { ACTIVE: 'success', INACTIVE: 'secondary', PASS: 'success', FAIL: 'danger', BLOCKED: 'warning', SKIPPED: 'info' };
-    return $('<span>').addClass('badge text-bg-' + (colors[state] || 'secondary')).text(state || 'Unmapped');
+    return $('<span>').addClass('badge text-bg-' + (colors[state] || 'secondary')).text(state ? window.I18n.enumLabel(state) : t("automation.unmapped", null, 'Unmapped'));
   };
   function notice(message, error) {
     $('#automation-notice').text(message || '').toggleClass('d-none', !message)
@@ -32,17 +35,19 @@
     $('#import-preview').empty();
     $('#import-submit').prop('disabled', true);
     if (!importBusy) $('#import-preview-button').prop('disabled', false);
-    if (clearResult) $('#import-result').empty();
+    if (clearResult) { $('#import-result').empty(); importResult = null; }
     status('');
   }
   function reset() {
     ++generation;
+    identityRows = null;
     selectedFile = null;
+    importResult = null;
     importBusy = false;
     invalidatePreview(true, true);
     $('#automation-identities').empty(); $('#automation-status').text('');
     $('#automation-register')[0].reset(); $('#import-form')[0].reset();
-    $('#import-file-status').text('No XML file selected.');
+    $('#import-file-status').text(t("automation.noXMLFileSelected", null, 'No XML file selected.'));
     $('#automation-register-submit, #import-preview-button').prop('disabled', false);
     $('#import-file, #import-namespace, #import-run-name, #import-environment, #import-build').prop('disabled', false);
     notice('');
@@ -50,8 +55,8 @@
   function conflict(error, operation) {
     return error.status === 409
       ? operation === 'import'
-        ? 'Import conflicts with current mappings or this request key was used with different data. Review the preview and selected file; do not assume partial success.'
-        : 'The mapping changed or this transition is not allowed. Refresh identities and mappings before trying again.'
+        ? t('automation.importConflict', null, 'Import conflicts with current mappings or this request key was used with different data. Review the preview and selected file; do not assume partial success.')
+        : t('automation.mappingConflict', null, 'The mapping changed or this transition is not allowed. Refresh identities and mappings before trying again.')
       : error.message;
   }
   function renderIdentity(identity, mapping, cases) {
@@ -60,56 +65,59 @@
     card.append($('<div class="asset-panel-heading mb-1">').append(
       $('<strong>').text(identity.source + ' · ' + identity.namespace + ' · ' + identity.externalKey),
       badge(mapping ? mapping.status : null)));
-    card.append($('<p class="small text-secondary mb-2">').text('Identity #' + identity.id + ' · ' + (mapping
-      ? 'Mapped TestCase ' + (mappedCase ? 'TC-' + String(mappedCase.keyNo).padStart(3, '0') + ' · ' + mappedCase.title : '#' + mapping.testCaseId)
-        + ' · v' + mapping.version : 'No mapping record')));
+    card.append($('<p class="small text-secondary mb-2">').text(t('automation.identityNumber', { id: identity.id }, 'Identity #{id}') + ' · ' + (mapping
+      ? t('automation.mappedCase', { name: mappedCase ? 'TC-' + String(mappedCase.keyNo).padStart(3, '0') + ' · ' + mappedCase.title : '#' + mapping.testCaseId }, 'Mapped TestCase {name}')
+        + ' · v' + mapping.version : t("automation.noMappingRecord", null, 'No mapping record'))));
     const actions = $('<div class="d-flex flex-wrap gap-2 align-items-center">');
-    const query = $('<button type="button" class="btn btn-outline-secondary btn-sm">').text('Query identity')
+    const query = $('<button type="button" class="btn btn-outline-secondary btn-sm">').text(t("automation.queryIdentity", null, 'Query identity'))
       .on('click', async function () {
         const token = generation;
         query.prop('disabled', true);
         try {
           const result = await api.get(identityPath(identity.id));
-          if (valid(token)) notice('Identity #' + result.id + ': ' + result.source + ' / ' + result.namespace + ' / ' + result.externalKey, false);
+          if (valid(token)) notice(t('automation.identityDetails', { id: result.id, source: result.source,
+            namespace: result.namespace, key: result.externalKey }, 'Identity #{id}: {source} / {namespace} / {key}'), false);
         } catch (error) { if (valid(token)) notice(error.message, true); }
         finally { if (valid(token)) query.prop('disabled', false); }
       });
     actions.append(query);
     if (!mapping || mapping.status === 'INACTIVE') {
-      const select = $('<select class="form-select automation-case-select" aria-label="TestCase for identity mapping">')
-        .append(option('', 'Select current-project TestCase'));
+      const select = $('<select class="form-select automation-case-select">').attr('aria-label', t('automation.caseForMapping', null, 'TestCase for identity mapping'))
+        .append(option('', t("automation.selectCurrentProjectTestCase", null, 'Select current-project TestCase')));
       cases.forEach(function (item) {
-        select.append(option(item.id, 'TC-' + String(item.keyNo).padStart(3, '0') + ' · ' + item.title + ' · ' + item.status));
+        select.append(option(item.id, 'TC-' + String(item.keyNo).padStart(3, '0') + ' · ' + item.title + ' · ' + window.I18n.enumLabel(item.status)));
       });
       if (mapping) select.val(String(mapping.testCaseId));
       const confirm = $('<button type="button" class="btn btn-outline-primary btn-sm">')
-        .text(mapping ? 'Confirm rebind / reactivate' : 'Confirm mapping')
+        .text(mapping ? t("automation.confirmRebindReactivate", null, 'Confirm rebind / reactivate') : t("automation.confirmMapping", null, 'Confirm mapping'))
         .on('click', async function () {
-          if (importBusy) { notice('Wait for the current import to finish before changing mappings.', true); return; }
+          if (importBusy) { notice(t('automation.importBusy', null, 'Wait for the current import to finish before changing mappings.'), true); return; }
           const caseId = Number(select.val());
-          if (!Number.isSafeInteger(caseId) || caseId <= 0) { notice('Choose a TestCase in the current project.', true); return; }
+          if (!Number.isSafeInteger(caseId) || caseId <= 0) { notice(t("automation.chooseATestCaseInTheCurrentProject", null, 'Choose a TestCase in the current project.'), true); return; }
           const chosen = cases.find(function (item) { return item.id === caseId; });
-          if (!window.confirm('Confirm ' + identity.externalKey + ' → ' + (chosen ? chosen.title : 'TestCase #' + caseId) + '? This is an explicit human mapping.')) return;
+          if (!window.confirm(t('automation.confirmMappingPrompt', { identity: identity.externalKey,
+            testCase: chosen ? chosen.title : t('automation.testCaseNumber', { id: caseId }, 'TestCase #{id}') },
+          'Confirm {identity} → {testCase}? This is an explicit human mapping.'))) return;
           const token = generation;
           confirm.prop('disabled', true); select.prop('disabled', true);
           try {
             await api.put(identityPath(identity.id) + '/mapping', { testCaseId: caseId,
               expectedVersion: mapping ? mapping.version : null });
-            if (valid(token)) { invalidatePreview(true); await load(); notice('Mapping confirmed. Preview the XML again before import.'); }
+            if (valid(token)) { invalidatePreview(true); await load(); notice(t("automation.mappingConfirmedPreviewTheXMLAgainBeforeImport", null, 'Mapping confirmed. Preview the XML again before import.')); }
           } catch (error) { if (valid(token)) notice(conflict(error), true); }
           finally { if (valid(token)) { confirm.prop('disabled', false); select.prop('disabled', false); } }
         });
       actions.append(select, confirm);
     } else {
-      const deactivate = $('<button type="button" class="btn btn-outline-danger btn-sm">').text('Deactivate mapping')
+      const deactivate = $('<button type="button" class="btn btn-outline-danger btn-sm">').text(t("automation.deactivateMapping", null, 'Deactivate mapping'))
         .on('click', async function () {
-          if (importBusy) { notice('Wait for the current import to finish before changing mappings.', true); return; }
-          if (!window.confirm('Deactivate this mapping? Existing imported history remains unchanged.')) return;
+          if (importBusy) { notice(t('automation.importBusy', null, 'Wait for the current import to finish before changing mappings.'), true); return; }
+          if (!window.confirm(t("automation.deactivateThisMappingExistingImportedHistoryRemainsUnchanged", null, 'Deactivate this mapping? Existing imported history remains unchanged.'))) return;
           const token = generation;
           deactivate.prop('disabled', true);
           try {
             await api.post(identityPath(identity.id) + '/mapping/deactivate', { expectedVersion: mapping.version });
-            if (valid(token)) { invalidatePreview(true); await load(); notice('Mapping deactivated. Preview the XML again before import.'); }
+            if (valid(token)) { invalidatePreview(true); await load(); notice(t("automation.mappingDeactivatedPreviewTheXMLAgainBeforeImport", null, 'Mapping deactivated. Preview the XML again before import.')); }
           } catch (error) { if (valid(token)) notice(conflict(error), true); }
           finally { if (valid(token)) deactivate.prop('disabled', false); }
         });
@@ -120,18 +128,25 @@
   async function load() {
     if (!active()) return;
     const token = ++generation;
-    $('#automation-identities').empty(); $('#automation-status').text('Loading identities and mappings…');
+    $('#automation-identities').empty(); $('#automation-status').text(t("automation.loadingIdentitiesAndMappings", null, 'Loading identities and mappings…'));
     try {
       const [identities, mappings, cases] = await Promise.all([
         api.get(base('automation/identities')), api.get(base('automation/mappings')), api.get(base('test-cases'))
       ]);
       if (!valid(token)) return;
-      $('#automation-status').text(identities.length ? identities.length + ' identity/identities' : 'No automation identities registered.');
-      const byIdentity = new Map(mappings.map(function (item) { return [item.automationIdentityId, item]; }));
-      identities.forEach(function (identity) {
-        $('#automation-identities').append(renderIdentity(identity, byIdentity.get(identity.id), cases));
-      });
+      identityRows = { identities: identities, mappings: mappings, cases: cases };
+      renderIdentities();
     } catch (error) { if (valid(token)) { $('#automation-status').text(''); notice(error.message, true); } }
+  }
+  function renderIdentities() {
+    if (!identityRows) return;
+    const { identities, mappings, cases } = identityRows;
+    $('#automation-identities').empty();
+    $('#automation-status').text(identities.length ? t('automation.identityCount', { count: window.I18n.formatNumber(identities.length) }, '{count} identity/identities') : t('automation.noAutomationIdentitiesRegistered', null, 'No automation identities registered.'));
+    const byIdentity = new Map(mappings.map(function (item) { return [item.automationIdentityId, item]; }));
+    identities.forEach(function (identity) {
+      $('#automation-identities').append(renderIdentity(identity, byIdentity.get(identity.id), cases));
+    });
   }
   function queryPath(previewOnly, requestKey) {
     const params = new URLSearchParams();
@@ -146,38 +161,43 @@
     return base('imports') + (previewOnly ? '/preview?' : '?') + params.toString();
   }
   function fileReady() {
-    if (!selectedFile) { status('Select a JUnit XML file.', true); return false; }
-    if (selectedFile.size > limit) { status('The selected file exceeds the 5 MiB limit.', true); return false; }
-    if (!$('#import-namespace').val().trim()) { status('Enter the source namespace used by the JUnit classname.', true); return false; }
+    if (!selectedFile) { status(t("automation.selectAJUnitXMLFile", null, 'Select a JUnit XML file.'), true); return false; }
+    if (selectedFile.size > limit) { status(t("automation.theSelectedFileExceedsThe5MiBLimit", null, 'The selected file exceeds the 5 MiB limit.'), true); return false; }
+    if (!$('#import-namespace').val().trim()) { status(t("automation.enterTheSourceNamespaceUsedByTheJUnitClassname", null, 'Enter the source namespace used by the JUnit classname.'), true); return false; }
     return true;
   }
   function renderPreview(value) {
     const target = $('#import-preview').empty();
-    target.append($('<h3 class="fs-5">').text('Preview · ' + (value.readyToImport ? 'ready to import' : 'mapping needed')));
-    target.append($('<p class="small text-secondary">').text(value.mappedResults.length + ' mapped result(s), '
-      + value.unknownIdentities.length + ' unknown/unmapped identity/identities, ' + value.invalidEntries.length + ' invalid entry/entries.'));
+    target.append($('<h3 class="fs-5">').text(t(value.readyToImport ? 'automation.previewReady' : 'automation.previewMappingNeeded',
+      null, value.readyToImport ? 'Preview · ready to import' : 'Preview · mapping needed')));
+    target.append($('<p class="small text-secondary">').text(t('automation.previewCounts', {
+      mapped: window.I18n.formatNumber(value.mappedResults.length), unknown: window.I18n.formatNumber(value.unknownIdentities.length),
+      invalid: window.I18n.formatNumber(value.invalidEntries.length)
+    }, '{mapped} mapped result(s), {unknown} unknown/unmapped identity/identities, {invalid} invalid entry/entries.')));
     value.mappedResults.forEach(function (entry) {
       const result = entry.result;
       target.append($('<div class="asset-step">').append(
         $('<div class="asset-panel-heading mb-1">').append($('<strong>').text(result.namespace + ' · ' + result.externalKey), badge(result.outcome)),
-        $('<p class="small mb-1">').text('Mapped to TC-' + String(entry.testCase.keyNo).padStart(3, '0') + ' · ' + entry.testCase.title),
-        $('<p class="small mb-1">').text('Duration: ' + (result.durationMs == null ? '—' : result.durationMs + ' ms')),
+        $('<p class="small mb-1">').text(t('automation.mappedToCase', { key: 'TC-' + String(entry.testCase.keyNo).padStart(3, '0'), title: entry.testCase.title }, 'Mapped to {key} · {title}')),
+        $('<p class="small mb-1">').text(t('automation.duration', { value: result.durationMs == null ? '—' : window.I18n.formatNumber(result.durationMs) + ' ms' }, 'Duration: {value}')),
         $('<p class="small mb-1 defect-prewrap">').text(result.comment || ''),
         $('<p class="small mb-0 defect-prewrap">').text(result.failureMessage || '')));
     });
     value.unknownIdentities.forEach(function (entry) {
-      const register = $('<button type="button" class="btn btn-outline-primary btn-sm">').text('Prepare registration')
+      const register = $('<button type="button" class="btn btn-outline-primary btn-sm">').text(t("automation.prepareRegistration", null, 'Prepare registration'))
         .on('click', function () {
           $('#automation-namespace').val(entry.namespace);
           $('#automation-key').val(entry.externalKey).trigger('focus');
-          notice('Register this identity, then explicitly confirm a TestCase mapping and preview the XML again.');
+          notice(t('automation.registerThenMap', null, 'Register this identity, then explicitly confirm a TestCase mapping and preview the XML again.'));
         });
       target.append($('<div class="asset-step">').append(
-        $('<strong>').text('Unknown / unmapped · ' + entry.namespace + ' · ' + entry.externalKey),
-        $('<p class="small text-secondary">').text('No TestCase or result detail is assigned by the preview API for this identity.'), register));
+        $('<strong>').text(t('automation.unknownIdentity', { namespace: entry.namespace, key: entry.externalKey },
+          'Unknown / unmapped · {namespace} · {key}')),
+        $('<p class="small text-secondary">').text(t('automation.unknownPreviewDetail', null, 'No TestCase or result detail is assigned by the preview API for this identity.')), register));
     });
     value.invalidEntries.forEach(function (entry) {
-      target.append($('<div class="alert alert-warning">').text('Entry #' + entry.entryIndex + ': ' + entry.message));
+      target.append($('<div class="alert alert-warning">').text(t('automation.invalidEntry',
+        { index: entry.entryIndex, message: entry.message }, 'Entry #{index}: {message}')));
     });
   }
   function openRun(runId) {
@@ -185,12 +205,14 @@
     location.hash = '#runs';
   }
   function renderImport(result) {
+    importResult = result;
     const target = $('#import-result').empty();
-    target.append($('<h3 class="fs-5">').text(result.replayed ? 'Import replayed' : 'Import completed'));
-    target.append($('<p>').text('Import #' + result.testImport.id + ' · Run "' + result.run.name + '" (#' + result.run.id
-      + ') · ' + result.run.status + ' · ' + result.runCases.length + ' Run Case snapshot(s) · '
-      + result.attempts.length + ' Attempt(s).'));
-    target.append($('<button type="button" class="btn btn-outline-primary">').text('Open imported Run and history')
+    target.append($('<h3 class="fs-5">').text(result.replayed ? t("automation.importReplayed", null, 'Import replayed') : t("automation.importCompleted", null, 'Import completed')));
+    target.append($('<p>').text(t('automation.importSummary', { importId: result.testImport.id, run: result.run.name,
+      runId: result.run.id, status: window.I18n.enumLabel(result.run.status), cases: window.I18n.formatNumber(result.runCases.length),
+      attempts: window.I18n.formatNumber(result.attempts.length) },
+    'Import #{importId} · Run "{run}" (#{runId}) · {status} · {cases} Run Case snapshot(s) · {attempts} Attempt(s).')));
+    target.append($('<button type="button" class="btn btn-outline-primary">').text(t("automation.openImportedRunAndHistory", null, 'Open imported Run and history'))
       .on('click', function () { openRun(result.run.id); }));
   }
   $(document).on('veriqra:project', function (event) {
@@ -204,6 +226,20 @@
     if (next !== view) { reset(); view = next; }
     if (active()) load();
   });
+  document.addEventListener('veriqra:localechange', function () {
+    if (!active()) return;
+    notice('');
+    renderIdentities();
+    if (preview) renderPreview(preview.response);
+    if (importResult) renderImport(importResult);
+    $('#import-file-status').text(selectedFile ? t('automation.selectedFile',
+      { name: selectedFile.name, bytes: window.I18n.formatNumber(selectedFile.size) }, '{name} · {bytes} bytes')
+      : t('automation.noXMLFileSelected'));
+    if (importBusy) status(t('automation.importingMappedResultsAtomically'));
+    else if (preview) status(preview.response.readyToImport ? t('automation.previewIsReadyConfirmTheImportDetailsBeforeSubmitting')
+      : t('automation.previewIsReadOnlyRegisterAndMapUnknownIdentitiesThenPreviewAgain'), !preview.response.readyToImport);
+    else status('');
+  });
   $('#automation-refresh').on('click', function () { if (!importBusy) { invalidatePreview(true); load(); } });
   $('#automation-register').on('submit', async function (event) {
     event.preventDefault();
@@ -213,15 +249,17 @@
     $('#automation-register-submit').prop('disabled', true); notice('');
     try {
       await api.post(base('automation/identities'), body);
-      if (valid(token)) { invalidatePreview(true); $('#automation-register')[0].reset(); await load(); notice('Identity registered. Confirm its mapping manually.'); }
+      if (valid(token)) { invalidatePreview(true); $('#automation-register')[0].reset(); await load(); notice(t("automation.identityRegisteredConfirmItsMappingManually", null, 'Identity registered. Confirm its mapping manually.')); }
     } catch (error) { if (valid(token)) notice(error.message, true); }
     finally { if (active()) $('#automation-register-submit').prop('disabled', false); }
   });
   $('#import-file').on('change', function () {
     selectedFile = this.files && this.files[0] ? this.files[0] : null;
     invalidatePreview(true, true);
-    $('#import-file-status').text(selectedFile ? selectedFile.name + ' · ' + selectedFile.size + ' bytes' : 'No XML file selected.');
-    if (selectedFile && selectedFile.size > limit) status('The selected file exceeds the 5 MiB limit.', true);
+    $('#import-file-status').text(selectedFile ? t('automation.selectedFile',
+      { name: selectedFile.name, bytes: window.I18n.formatNumber(selectedFile.size) }, '{name} · {bytes} bytes')
+      : t("automation.noXMLFileSelected", null, 'No XML file selected.'));
+    if (selectedFile && selectedFile.size > limit) status(t("automation.theSelectedFileExceedsThe5MiBLimit", null, 'The selected file exceeds the 5 MiB limit.'), true);
   });
   $('#import-namespace').on('input', function () { invalidatePreview(true, true); });
   $('#import-run-name, #import-environment, #import-build').on('input', function () { pendingImport = null; $('#import-result').empty(); });
@@ -232,15 +270,15 @@
     preview = null;
     $('#import-preview, #import-result').empty();
     $('#import-submit, #import-preview-button').prop('disabled', true);
-    status('Analyzing XML without importing…');
+    status(t("automation.analyzingXMLWithoutImporting", null, 'Analyzing XML without importing…'));
     try {
       const result = await api.xml(queryPath(true), file);
       if (!valid(token) || uploadToken !== uploadGeneration || file !== selectedFile || namespace !== $('#import-namespace').val().trim()) return;
       preview = { file: file, namespace: namespace, response: result };
       renderPreview(result);
       $('#import-submit').prop('disabled', !result.readyToImport);
-      status(result.readyToImport ? 'Preview is ready. Confirm the import details before submitting.'
-        : 'Preview is read-only. Register and map unknown identities, then preview again.', !result.readyToImport);
+      status(result.readyToImport ? t("automation.previewIsReadyConfirmTheImportDetailsBeforeSubmitting", null, 'Preview is ready. Confirm the import details before submitting.')
+        : t("automation.previewIsReadOnlyRegisterAndMapUnknownIdentitiesThenPreviewAgain", null, 'Preview is read-only. Register and map unknown identities, then preview again.'), !result.readyToImport);
     } catch (error) { if (valid(token) && uploadToken === uploadGeneration) status(error.message, true); }
     finally { if (valid(token) && uploadToken === uploadGeneration) $('#import-preview-button').prop('disabled', false); }
   });
@@ -249,35 +287,35 @@
     if (importBusy || $('#import-submit').prop('disabled') || !this.reportValidity() || !fileReady()) return;
     const namespace = $('#import-namespace').val().trim();
     if (!preview || !preview.response.readyToImport || preview.file !== selectedFile || preview.namespace !== namespace) {
-      status('Preview this exact file and namespace before import.', true); return;
+      status(t("automation.previewThisExactFileAndNamespaceBeforeImport", null, 'Preview this exact file and namespace before import.'), true); return;
     }
     const runName = $('#import-run-name').val().trim();
-    if (!runName) { status('Enter a Run name.', true); return; }
+    if (!runName) { status(t("automation.enterARunName", null, 'Enter a Run name.'), true); return; }
     const signature = JSON.stringify([namespace, selectedFile.name, runName,
       $('#import-environment').val().trim(), $('#import-build').val().trim()]);
     if (!pendingImport || pendingImport.file !== selectedFile || pendingImport.signature !== signature) {
       pendingImport = { file: selectedFile, signature: signature, requestKey: crypto.randomUUID() };
     }
-    if (!window.confirm('Import this mapped JUnit report as one completed Run?')) return;
+    if (!window.confirm(t("automation.importThisMappedJUnitReportAsOneCompletedRun", null, 'Import this mapped JUnit report as one completed Run?'))) return;
     const token = generation, uploadToken = uploadGeneration, file = selectedFile;
     importBusy = true;
     $('#import-submit, #import-preview-button').prop('disabled', true);
     $('#import-file, #import-namespace, #import-run-name, #import-environment, #import-build').prop('disabled', true);
-    status('Importing mapped results atomically…');
+    status(t("automation.importingMappedResultsAtomically", null, 'Importing mapped results atomically…'));
     try {
       const result = await api.xml(queryPath(false, pendingImport.requestKey), file);
       if (!valid(token) || uploadToken !== uploadGeneration || file !== selectedFile) return;
       pendingImport = null;
       renderImport(result);
-      status(result.replayed ? 'Existing import returned for this request key.' : 'Import completed. Open the Run to inspect snapshots and Attempt history.');
+      status(result.replayed ? t("automation.existingImportReturnedForThisRequestKey", null, 'Existing import returned for this request key.') : t("automation.importCompletedOpenTheRunToInspectSnapshotsAndAttemptHistory", null, 'Import completed. Open the Run to inspect snapshots and Attempt history.'));
       // The server has accepted the bytes; release the selected file from client state.
       preview = null;
       selectedFile = null;
       $('#import-file').val('');
-      $('#import-file-status').text('Import complete. Select a new XML file for another import.');
+      $('#import-file-status').text(t("automation.importCompleteSelectANewXMLFileForAnotherImport", null, 'Import complete. Select a new XML file for another import.'));
     } catch (error) {
-      if (valid(token) && uploadToken === uploadGeneration) status(conflict(error, 'import')
-        + ' Check the Runs list after an uncertain response; retrying unchanged details reuses the same request key.', true);
+      if (valid(token) && uploadToken === uploadGeneration) status(conflict(error, 'import') + ' '
+        + t('automation.retrySameRequest', null, 'Check the Runs list after an uncertain response; retrying unchanged details reuses the same request key.'), true);
     } finally {
       if (valid(token) && uploadToken === uploadGeneration) {
         importBusy = false;

@@ -19,6 +19,7 @@ QATrack → Veriqra 的更名与部署历史见 [更名与部署说明](docs/VER
 - 调用方向：Servlet → Service → DAO → JDBC → MySQL；Model 为数据模型。
 - DAO 必须分离接口与实现；业务规则和事务控制归 Service，Servlet 只处理 HTTP。
 - 前端使用 HTML、CSS、JavaScript、jQuery、Bootstrap 和 AJAX，不引入前端构建系统。
+- 前端界面支持 English / 简体中文切换；语言偏好仅保存在浏览器本地，时间统一按 `Asia/Shanghai` 显示，详见 [R5.1 国际化说明](docs/PHASE5-R5.1-I18N.md)。
 - 使用 JUnit 5、Mockito、JaCoCo 和隔离 MySQL/HTTP 集成测试验证实现。
 
 运行依赖为 Jakarta Servlet 6（provided）、Jackson JSON 和 MySQL Connector/J；JUnit 5 与嵌入式 Tomcat 仅用于测试。

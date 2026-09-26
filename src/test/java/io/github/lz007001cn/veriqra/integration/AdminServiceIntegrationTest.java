@@ -8,6 +8,7 @@ import io.github.lz007001cn.veriqra.service.auth.PasswordVerifier;
 import io.github.lz007001cn.veriqra.service.exception.*;
 import io.github.lz007001cn.veriqra.service.support.*;
 import org.junit.jupiter.api.*;
+import java.time.*;
 import java.util.*;
 import java.util.concurrent.*;
 import static org.junit.jupiter.api.Assertions.*;
@@ -214,5 +215,52 @@ class AdminServiceIntegrationTest extends MysqlFixture {
         assertEquals(expected,credits.summary(admin.id()).totalBalance());
         assertEquals(expected,credits.summary(admin.id()).totalIssued());
         assertEquals(expected,logs.metrics(admin.id()).creditsIssuedToday());
+    }
+
+    @Test void dashboardTodayUsesShanghaiBoundsForLoginAccessAndCredit() {
+        var boundaryClock=Clock.fixed(Instant.parse("2026-09-25T17:00:00Z"),ZoneOffset.UTC);
+        var boundaryLogs=new AdminLogService(new JdbcServiceTransaction(tx),new AdminAccessPolicy(),boundaryClock);
+        tx.inTransaction(c->{
+            try(var login=c.prepareStatement("INSERT INTO login_events(user_id,username_attempted,ip_address,browser,operating_system,device_type,result,created_at) VALUES(?,?,'127.0.0.1','Other','Other','Desktop',?,?)");
+                var access=c.prepareStatement("INSERT INTO access_logs(user_id,ip_address,browser,operating_system,device_type,http_method,request_path,status_code,request_id,duration_ms,created_at) VALUES(?,'127.0.0.1','Other','Other','Desktop','GET','/test',?,?,1,?)");
+                var credit=c.prepareStatement("INSERT INTO credit_transactions(user_id,amount,type,actor_user_id,created_at) VALUES(?,1,?,?,?)")) {
+                for(var item:List.of(
+                        new Object[]{"2026-09-25T15:59:59","FAILURE"},
+                        new Object[]{"2026-09-25T16:00:00","SUCCESS"},
+                        new Object[]{"2026-09-26T15:59:59","FAILURE"},
+                        new Object[]{"2026-09-26T16:00:00","RATE_LIMITED"})) {
+                    login.setLong(1,user.id());login.setString(2,user.username());login.setString(3,(String)item[1]);
+                    login.setObject(4,LocalDateTime.parse((String)item[0]));login.executeUpdate();
+                }
+                for(var item:List.of(
+                        new Object[]{"2026-09-25T15:59:59",500},
+                        new Object[]{"2026-09-25T16:00:00",200},
+                        new Object[]{"2026-09-26T15:59:59",400},
+                        new Object[]{"2026-09-26T16:00:00",500})) {
+                    access.setLong(1,user.id());access.setInt(2,(Integer)item[1]);
+                    access.setString(3,UUID.randomUUID().toString());
+                    access.setObject(4,LocalDateTime.parse((String)item[0]));access.executeUpdate();
+                }
+                for(var item:List.of(
+                        new Object[]{"2026-09-25T15:59:59","GRANT"},
+                        new Object[]{"2026-09-25T16:00:00","GRANT"},
+                        new Object[]{"2026-09-26T15:59:59","RECLAIM"},
+                        new Object[]{"2026-09-26T16:00:00","GRANT"})) {
+                    credit.setLong(1,user.id());credit.setString(2,(String)item[1]);credit.setLong(3,admin.id());
+                    credit.setObject(4,LocalDateTime.parse((String)item[0]));credit.executeUpdate();
+                }
+            } catch(java.sql.SQLException e) { throw new AssertionError(e); }
+            return null;
+        });
+        var metrics=boundaryLogs.metrics(admin.id());
+        assertEquals(1,metrics.loginsToday());
+        assertEquals(1,metrics.failedLoginsToday());
+        assertEquals(0,metrics.rateLimitedToday());
+        assertEquals(2,metrics.requestsToday());
+        assertEquals(1,metrics.clientErrorsToday());
+        assertEquals(0,metrics.serverErrorsToday());
+        assertEquals(1,metrics.uniqueIpsToday());
+        assertEquals(java.math.BigInteger.ONE,metrics.creditsIssuedToday());
+        assertEquals(java.math.BigInteger.ONE,metrics.creditsReclaimedToday());
     }
 }
