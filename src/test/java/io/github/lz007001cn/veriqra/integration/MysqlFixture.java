@@ -51,7 +51,7 @@ abstract class MysqlFixture {
         Matcher names=Pattern.compile("CREATE TABLE `([a-z_]+)`").matcher(schema);
         int count=0;
         while(names.find()) count++;
-        if(count!=24) throw new IllegalStateException("Unexpected V1 plus Administration schema");
+        if(count!=29) throw new IllegalStateException("Unexpected V1 plus Administration and Collaboration schema");
         installSchema(owner,schema,createdTables);
         pool=new ConnectionPool(config); tx=new JdbcTransactionManager(pool);
     }
@@ -91,7 +91,7 @@ abstract class MysqlFixture {
     @BeforeEach void resetRows() throws SQLException {
         // Only rows inserted by this fixture; the development seed is never loaded or referenced.
         try(var c=pool.borrow(); var s=c.createStatement()) {
-            // Admin telemetry and ledger depend on users and credit accounts.
+            // Admin telemetry, ledger and collaboration records depend on users and projects.
             //noinspection SqlWithoutWhere
             s.executeUpdate("DELETE FROM audit_logs");
             //noinspection SqlWithoutWhere
@@ -102,6 +102,16 @@ abstract class MysqlFixture {
             s.executeUpdate("DELETE FROM credit_transactions");
             //noinspection SqlWithoutWhere
             s.executeUpdate("DELETE FROM credit_accounts");
+            //noinspection SqlWithoutWhere
+            s.executeUpdate("DELETE FROM work_task_events");
+            //noinspection SqlWithoutWhere
+            s.executeUpdate("DELETE FROM work_tasks");
+            //noinspection SqlWithoutWhere
+            s.executeUpdate("DELETE FROM team_members");
+            //noinspection SqlWithoutWhere
+            s.executeUpdate("DELETE FROM project_teams");
+            //noinspection SqlWithoutWhere
+            s.executeUpdate("DELETE FROM project_managers");
             // Intentional full cleanup of fixture-owned test tables; keep FK checks enabled.
             //noinspection SqlWithoutWhere
             s.executeUpdate("DELETE FROM test_attempt_defects");

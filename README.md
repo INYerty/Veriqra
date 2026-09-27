@@ -5,9 +5,9 @@ Software Test & Quality Management Platform · 软件测试与质量管理平台
 以可追踪性为核心，将需求、测试用例、测试计划、测试执行、测试结果与缺陷关联起来。
 项目用于《Web应用开发实践》课程设计，并计划作为长期维护的个人项目。
 
-公开域名目标：[https://veriqra.xyz](https://veriqra.xyz)。仓库包含 REST 后端、主业务前端，以及本轮新增的 Administration Console。
+公开域名目标：[https://veriqra.xyz](https://veriqra.xyz)。仓库包含 REST 后端、主业务前端、Administration Console 和项目协作界面。
 
-核心业务模型冻结为 19 表 / 154 字段；Phase 5 R5 新增 5 张 Administration 表，当前空库 `schema.sql` 共 24 表。JDBC、Service、登录/会话、测试资产、执行、缺陷、自动化和 JUnit 导入 API 均已实现。公开部署安全基线包括登录限流、严格 Origin/Host 校验、同源写请求头和安全 Session Cookie。本轮 Admin 增量尚未部署到生产数据库，迁移步骤见 [Administration 说明](docs/PHASE5-R5-ADMINISTRATION.md)。
+核心业务模型冻结为 19 表 / 154 字段；Phase 5 R5 新增 5 张 Administration 表，项目协作再新增 5 张表，当前空库 `schema.sql` 共 29 表。JDBC、Service、登录/会话、测试资产、执行、缺陷、自动化、JUnit 导入和项目协作 API 均已实现。公开部署安全基线包括登录限流、严格 Origin/Host 校验、同源写请求头和安全 Session Cookie。现有环境升级步骤分别见 [Administration 说明](docs/PHASE5-R5-ADMINISTRATION.md) 与 [项目协作说明](docs/PROJECT-COLLABORATION.md)；仓库结构不代表生产库已完成相应迁移。
 
 QATrack → Veriqra 的更名与部署历史见 [更名与部署说明](docs/VERIQRA-RENAME.md)。
 
@@ -75,7 +75,7 @@ Maven runner 均应选择 JDK 21，语言级别以 POM 中的 `maven.compiler.re
 - [数据库设计](docs/DATABASE-DESIGN-DRAFT.md)：19 表、154 字段及与真实 DDL 一致的约束和索引。
 - [Mermaid ER 源文件](docs/V1-ER.mmd)：19 表、40 条外键关系。
 - [Freeze v1.0 决策](docs/DOMAIN-FREEZE-v1.0.md)：Run 直接保存非空 project_id 的七维比较。
-- [数据库执行说明](database/README.md)：冻结 19 表验证、当前 24 表空库安装及 R5 增量迁移。
+- [数据库执行说明](database/README.md)：冻结 19 表验证、当前 29 表空库安装及增量迁移。
 - [数据库实测报告](docs/DATABASE-VALIDATION-v1.0.md)：178 项测试、22 项数据一致性检查及对象统计。
 - [上一轮设计审计](docs/V1-DESIGN-AUDIT.md)：20 表阶段的历史记录，已由冻结模型取代。
 

@@ -16,10 +16,10 @@
 
   function announce(name, detail) { document.dispatchEvent(new CustomEvent('veriqra:' + name, { detail: detail })); }
   function setView(view, silent) {
-    currentView = ['dashboard', 'requirements', 'test-cases', 'test-plans', 'runs', 'defects', 'automation'].includes(view) ? view : 'dashboard';
+    currentView = ['dashboard', 'requirements', 'test-cases', 'test-plans', 'runs', 'defects', 'automation', 'collaboration'].includes(view) ? view : 'dashboard';
     $('[data-view]').removeClass('active').removeAttr('aria-current');
     $('[data-view="' + currentView + '"]').addClass('active').attr('aria-current', 'page');
-    const labels = { dashboard: [t("shell.overview", null, 'OVERVIEW'), t("shell.projectDashboard", null, 'Project dashboard'), t("shell.yourCurrentQualityWorkspace", null, 'Your current quality workspace.')], requirements: [t("shell.testASSETS", null, 'TEST ASSETS'), t("common.requirements", null, 'Requirements'), t("shell.manageRequirementsAndTheirTestCoverage", null, 'Manage requirements and their test coverage.')], 'test-cases': [t("shell.testASSETS", null, 'TEST ASSETS'), t("common.testCases", null, 'Test cases'), t("shell.maintainCurrentTestDefinitionsAndSteps", null, 'Maintain current test definitions and steps.')], 'test-plans': [t("shell.planning", null, 'PLANNING'), t("common.testPlans", null, 'Test plans'), t("shell.defineTheCasesToExecute", null, 'Define the cases to execute.')], runs: [t("shell.execution", null, 'EXECUTION'), t("common.testRuns", null, 'Test runs'), t("shell.inspectFrozenSnapshotsAndRecordAttempts", null, 'Inspect frozen snapshots and record attempts.')], defects: [t("shell.quality", null, 'QUALITY'), t("common.defects", null, 'Defects'), t("shell.trackFailuresRetestsAndClosureEvidence", null, 'Track failures, retests and closure evidence.')], automation: [t("shell.automation", null, 'AUTOMATION'), t("common.automationImports", null, 'Automation & imports'), t("shell.confirmMappingsAndImportJUnitResults", null, 'Confirm mappings and import JUnit results.')] };
+    const labels = { dashboard: [t("shell.overview", null, 'OVERVIEW'), t("shell.projectDashboard", null, 'Project dashboard'), t("shell.yourCurrentQualityWorkspace", null, 'Your current quality workspace.')], requirements: [t("shell.testASSETS", null, 'TEST ASSETS'), t("common.requirements", null, 'Requirements'), t("shell.manageRequirementsAndTheirTestCoverage", null, 'Manage requirements and their test coverage.')], 'test-cases': [t("shell.testASSETS", null, 'TEST ASSETS'), t("common.testCases", null, 'Test cases'), t("shell.maintainCurrentTestDefinitionsAndSteps", null, 'Maintain current test definitions and steps.')], 'test-plans': [t("shell.planning", null, 'PLANNING'), t("common.testPlans", null, 'Test plans'), t("shell.defineTheCasesToExecute", null, 'Define the cases to execute.')], runs: [t("shell.execution", null, 'EXECUTION'), t("common.testRuns", null, 'Test runs'), t("shell.inspectFrozenSnapshotsAndRecordAttempts", null, 'Inspect frozen snapshots and record attempts.')], defects: [t("shell.quality", null, 'QUALITY'), t("common.defects", null, 'Defects'), t("shell.trackFailuresRetestsAndClosureEvidence", null, 'Track failures, retests and closure evidence.')], automation: [t("shell.automation", null, 'AUTOMATION'), t("common.automationImports", null, 'Automation & imports'), t("shell.confirmMappingsAndImportJUnitResults", null, 'Confirm mappings and import JUnit results.')], collaboration: [t('collab.eyebrow', null, 'COLLABORATION'), t('collab.navigation', null, 'Teams & tasks'), t('collab.description', null, 'Organize project teams and review assigned work.')] };
     $('#view-eyebrow').text(labels[currentView][0]);
     $('#view-title').text(labels[currentView][1]);
     $('#view-description').text(labels[currentView][2]);
@@ -29,6 +29,7 @@
     $('#execution-workspace').toggleClass('d-none', !['test-plans', 'runs'].includes(currentView) || !selectedId);
     $('#defect-workspace').toggleClass('d-none', currentView !== 'defects' || !selectedId);
     $('#automation-workspace').toggleClass('d-none', currentView !== 'automation' || !selectedId);
+    $('#collaboration-workspace').toggleClass('d-none', currentView !== 'collaboration' || !selectedId);
     $('#sidebar').removeClass('open');
     $('#sidebar-toggle').attr('aria-expanded', 'false');
     if (!silent) announce('view', { view: currentView, projectId: selectedId });
@@ -44,7 +45,7 @@
     activeProject = null;
     selectedId = null;
     picker.empty().append($('<option>').val('').text(t("shell.loadingProjects", null, 'Loading projects…'))).prop('disabled', true);
-    $('#project-dashboard, #empty-projects, #asset-workspace, #execution-workspace, #defect-workspace, #automation-workspace').addClass('d-none');
+    $('#project-dashboard, #empty-projects, #asset-workspace, #execution-workspace, #defect-workspace, #automation-workspace, #collaboration-workspace').addClass('d-none');
     $('#project-key, #project-title, #project-description, #project-status, #account-name').text('');
   }
   function showProject(project) {
@@ -55,6 +56,7 @@
     $('#execution-workspace').toggleClass('d-none', !['test-plans', 'runs'].includes(currentView));
     $('#defect-workspace').toggleClass('d-none', currentView !== 'defects');
     $('#automation-workspace').toggleClass('d-none', currentView !== 'automation');
+    $('#collaboration-workspace').toggleClass('d-none', currentView !== 'collaboration');
     $('#project-title').text(project.name);
     $('#project-key').text(project.projectKey);
     $('#project-description').text(project.description || t("shell.noProjectDescriptionHasBeenAdded", null, 'No project description has been added.'));
@@ -70,7 +72,7 @@
     selecting = true;
     selectedId = null;
     announce('project', { project: null });
-    $('#project-dashboard, #asset-workspace, #execution-workspace, #defect-workspace, #automation-workspace').addClass('d-none');
+    $('#project-dashboard, #asset-workspace, #execution-workspace, #defect-workspace, #automation-workspace, #collaboration-workspace').addClass('d-none');
     picker.prop('disabled', true);
     feedback('');
     api.get('projects/' + encodeURIComponent(id))
@@ -103,7 +105,7 @@
           announce('project', { project: null });
           rememberProject(null);
           picker.append($('<option>').val('').text(t("shell.noProjectsAvailable", null, 'No projects available')));
-          $('#project-dashboard, #asset-workspace, #execution-workspace, #defect-workspace, #automation-workspace').addClass('d-none');
+          $('#project-dashboard, #asset-workspace, #execution-workspace, #defect-workspace, #automation-workspace, #collaboration-workspace').addClass('d-none');
           $('#empty-projects').removeClass('d-none');
           return;
         }
@@ -171,7 +173,7 @@
   function renderWorkflow() {
     $('#workflow').empty();
     [t('common.requirements'), t('common.testCases'), t('common.testPlans'), t('common.runs'),
-      t('common.defects'), t('common.automationImports')].forEach(function (name, index) {
+      t('common.defects'), t('common.automationImports'), t('collab.navigation', null, 'Teams & tasks')].forEach(function (name, index) {
       const card = $('<div class="workflow-card">');
       card.append($('<span class="workflow-number">').text(String(index + 1).padStart(2, '0')));
       card.append($('<strong>').text(name));

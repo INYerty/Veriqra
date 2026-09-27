@@ -15,6 +15,7 @@
   <script defer src="assets/js/execution.js"></script>
   <script defer src="assets/js/defects.js"></script>
   <script defer src="assets/js/automation-imports.js"></script>
+  <script defer src="assets/js/collaboration.js"></script>
 </head>
 <body class="app-page">
   <div id="bootstrap-screen" class="bootstrap-screen" role="status" aria-live="polite">
@@ -42,6 +43,7 @@
         <a class="nav-item" href="#runs" data-view="runs">▷ <span data-i18n="common.runs">Runs</span></a>
         <a class="nav-item" href="#defects" data-view="defects">⌁ <span data-i18n="common.defects">Defects</span></a>
         <a class="nav-item" href="#automation" data-view="automation">⚙ <span data-i18n="common.automationImports">Automation &amp; imports</span></a>
+        <a class="nav-item" href="#collaboration" data-view="collaboration">◧ <span data-i18n="collab.navigation">Teams &amp; tasks</span></a>
         <a class="nav-item d-none" id="admin-entry" href="admin/index.html">◆ <span data-i18n="common.administration">Administration</span></a>
         <div class="sidebar-footer" data-i18n="shell.softwareTestQualityManagement">Software Test &amp; Quality Management</div>
       </nav>
@@ -166,6 +168,59 @@
             <div class="mb-3"><label for="defect-create-assignee" class="form-label" data-i18n="shell.assigneeUserIDOptionalActiveDeveloperOrAdmin">Assignee user ID (optional; active Developer or Admin)</label><input id="defect-create-assignee" class="form-control" type="number" min="1" step="1"></div>
             <button id="defect-create-submit" class="btn btn-primary" type="submit" data-i18n="shell.createDefect">Create defect</button>
           </form>
+        </section>
+        <section id="collaboration-workspace" class="d-none" aria-label="Teams and tasks" data-i18n-aria-label="collab.navigation">
+          <div id="collab-feedback" class="alert d-none" role="status" aria-live="polite"></div>
+          <section class="asset-panel" aria-labelledby="collab-managers-heading">
+            <div class="asset-panel-heading"><h2 id="collab-managers-heading" data-i18n="collab.managers">Project managers</h2><button id="collab-refresh" class="btn btn-outline-secondary btn-sm" type="button" data-i18n="common.refresh">Refresh</button></div>
+            <p class="text-secondary small" data-i18n="collab.managerHelp">Platform administrators appoint managers from active project members. Managers cannot administer platform accounts.</p>
+            <div id="collab-managers"></div>
+            <form id="collab-appoint-form" class="row g-2 align-items-end d-none" novalidate>
+              <div class="col-md-8"><label class="form-label" for="collab-appoint-user" data-i18n="collab.member">Project member</label><select id="collab-appoint-user" class="form-select" required></select></div>
+              <div class="col-md-4"><button class="btn btn-primary" type="submit" data-i18n="collab.appoint">Appoint manager</button></div>
+            </form>
+          </section>
+          <section class="asset-panel" aria-labelledby="collab-members-heading">
+            <h2 id="collab-members-heading" data-i18n="collab.projectMembers">Project members</h2><div id="collab-members"></div>
+            <form id="collab-invite-form" class="row g-2 align-items-end d-none" novalidate>
+              <div class="col-md-5"><label class="form-label" for="collab-invite-username" data-i18n="collab.existingUsername">Existing username</label><input id="collab-invite-username" class="form-control" maxlength="64" required></div>
+              <div class="col-md-4"><label class="form-label" for="collab-invite-role" data-i18n="collab.projectRole">Project role</label><select id="collab-invite-role" class="form-select"><option value="TESTER" data-i18n="collab.tester">Tester</option><option value="DEVELOPER" data-i18n="collab.developer">Developer</option></select></div>
+              <div class="col-md-3"><button class="btn btn-primary" type="submit" data-i18n="collab.addMember">Add member</button></div>
+            </form>
+          </section>
+          <section class="asset-panel" aria-labelledby="collab-teams-heading">
+            <h2 id="collab-teams-heading" data-i18n="collab.teams">Teams</h2><div id="collab-teams"></div>
+            <form id="collab-team-form" class="row g-2 align-items-end d-none" novalidate>
+              <div class="col-md-5"><label class="form-label" for="collab-team-name" data-i18n="collab.teamName">Team name</label><input id="collab-team-name" class="form-control" maxlength="120" required></div>
+              <div class="col-md-4"><label class="form-label" for="collab-team-lead" data-i18n="collab.teamLead">Team lead</label><select id="collab-team-lead" class="form-select" required></select></div>
+              <div class="col-md-3"><button class="btn btn-primary" type="submit" data-i18n="collab.createTeam">Create team</button></div>
+            </form>
+            <div id="collab-team-detail" class="mt-3 d-none"><h3 id="collab-team-title" class="fs-5"></h3><div id="collab-team-members"></div>
+              <form id="collab-team-member-form" class="row g-2 align-items-end d-none" novalidate>
+                <div class="col-md-8"><label class="form-label" for="collab-team-member" data-i18n="collab.member">Project member</label><select id="collab-team-member" class="form-select" required></select></div>
+                <div class="col-md-4"><button class="btn btn-outline-primary" type="submit" data-i18n="collab.addToTeam">Add to team</button></div>
+              </form>
+              <form id="collab-change-lead-form" class="row g-2 align-items-end d-none mt-1" novalidate>
+                <div class="col-md-8"><label class="form-label" for="collab-new-lead" data-i18n="collab.newLead">New team lead</label><select id="collab-new-lead" class="form-select" required></select></div>
+                <div class="col-md-4"><button class="btn btn-outline-secondary" type="submit" data-i18n="collab.changeLead">Change lead</button></div>
+              </form>
+            </div>
+          </section>
+          <section class="asset-panel" aria-labelledby="collab-tasks-heading">
+            <h2 id="collab-tasks-heading" data-i18n="collab.tasks">Tasks</h2><p class="text-secondary small" data-i18n="collab.taskHelp">Assignees submit work; a different project manager or team lead accepts it. Task completion does not grant Credits.</p>
+            <div id="collab-tasks"></div>
+            <form id="collab-task-form" class="d-none mt-3" novalidate>
+              <h3 class="fs-5" data-i18n="collab.createTask">Create task</h3>
+              <div class="row g-2 mb-2"><div class="col-md-6"><label class="form-label" for="collab-task-team" data-i18n="collab.team">Team</label><select id="collab-task-team" class="form-select" required></select></div><div class="col-md-6"><label class="form-label" for="collab-task-assignee" data-i18n="collab.assignee">Assignee</label><select id="collab-task-assignee" class="form-select" required></select></div></div>
+              <div class="mb-2"><label class="form-label" for="collab-task-title" data-i18n="common.title">Title</label><input id="collab-task-title" class="form-control" maxlength="240" required></div>
+              <div class="mb-2"><label class="form-label" for="collab-task-description" data-i18n="common.description">Description</label><textarea id="collab-task-description" class="form-control" rows="2"></textarea></div>
+              <button class="btn btn-primary" type="submit" data-i18n="collab.createTask">Create task</button>
+            </form>
+            <div id="collab-task-detail" class="d-none mt-4"><h3 id="collab-task-detail-title" class="fs-5"></h3><div id="collab-task-summary"></div><div class="mt-2"><label class="form-label" for="collab-task-note" data-i18n="collab.reviewNote">Review note (required when returning work)</label><input id="collab-task-note" class="form-control" maxlength="500"></div><div id="collab-task-actions" class="d-flex flex-wrap gap-2 mt-2"></div>
+              <form id="collab-reassign-form" class="row g-2 align-items-end d-none mt-2" novalidate><div class="col-md-8"><label class="form-label" for="collab-reassign-user" data-i18n="collab.newAssignee">New assignee</label><select id="collab-reassign-user" class="form-select" required></select></div><div class="col-md-4"><button class="btn btn-outline-primary" type="submit" data-i18n="collab.reassign">Reassign</button></div></form>
+              <div class="mt-3"><h4 class="fs-6" data-i18n="collab.history">Task history</h4><div id="collab-task-events"></div></div>
+            </div>
+          </section>
         </section>
         <section id="automation-workspace" class="d-none" aria-label="Automation and JUnit imports" data-i18n-aria-label="shell.automationAndJUnitImports">
           <div id="automation-notice" class="alert d-none" role="status" aria-live="polite"></div>

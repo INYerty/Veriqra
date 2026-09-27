@@ -44,6 +44,8 @@ public final class ApplicationListener implements ServletContextListener {
                     new CreditService(transactions, adminPolicy),
                     new AdminLogService(transactions, adminPolicy),
                     new TelemetryService(transactions), System.currentTimeMillis()));
+            context.setAttribute(CollaborationService.class.getName(),
+                    new DefaultCollaborationService(transactions, daos, access, java.time.Clock.systemUTC()));
             context.setAttribute(WebServices.ATTRIBUTE, new WebServices(
                     new DefaultAuthService(transactions, daos, passwords),
                     new DefaultProjectService(transactions, daos, access),
@@ -66,6 +68,7 @@ public final class ApplicationListener implements ServletContextListener {
     @Override public void contextDestroyed(ServletContextEvent event) {
         event.getServletContext().removeAttribute(WebServices.ATTRIBUTE);
         event.getServletContext().removeAttribute(AdminServices.ATTRIBUTE);
+        event.getServletContext().removeAttribute(CollaborationService.class.getName());
         closePool(event.getServletContext());
     }
     private void closePool(ServletContext context) {

@@ -1,15 +1,16 @@
 # Veriqra V1 数据库
 
-核心模型冻结版本：[Freeze v1.0](../docs/DOMAIN-FREEZE-v1.0.md)，目标 MySQL 8.0.46，19 表、154 字段。Phase 5 R5 在核心模型之外增加 5 张 Administration 表；当前空库安装为 24 表。新增结构和部署前提见 [R5 说明](../docs/PHASE5-R5-ADMINISTRATION.md)。
+核心模型冻结版本：[Freeze v1.0](../docs/DOMAIN-FREEZE-v1.0.md)，目标 MySQL 8.0.46，19 表、154 字段。Phase 5 R5 增加 5 张 Administration 表；项目协作增量再增加 5 张表，当前空库安装为 29 表。增量结构分别见 [R5 说明](../docs/PHASE5-R5-ADMINISTRATION.md) 和 [项目协作说明](../docs/PROJECT-COLLABORATION.md)。
 见 [完整设计](../docs/DATABASE-DESIGN-DRAFT.md) 和 [实测报告](../docs/DATABASE-VALIDATION-v1.0.md)。
 
 ## 执行文件
 
 | 文件 | 作用 |
 | --- | --- |
-| schema.sql | 当前 24 表空库建表及约束；不含建库/删库或 IF NOT EXISTS |
+| schema.sql | 当前 29 表空库建表及约束；不含建库/删库或 IF NOT EXISTS |
 | schema-v1-frozen.sql | 原 19 表冻结 DDL，保留给 V1 验证脚本复现历史结果 |
 | migrations/20260924-admin.sql | 已有 19 表安装的单次升级脚本；新增索引、5 表并为已有用户补 0 余额账户；必须先备份并在选定目标库人工执行 |
+| migrations/20260926-collaboration.sql | 已有 24 表（含 Administration）安装的单次升级脚本；增加项目负责人、小组、任务和历史事件 5 表。不得跳过备份或在本地开发时自动执行 |
 | seed.sql | 空表种子，单事务 680 行，每表至少 10 行；重复执行应报冲突 |
 | constraint-tests.sql | 验证库专用，178 项测试；修改逐项回滚，三个测试过程成功后删除 |
 | queries.sql | 10 组核心查询与 2 条 EXPLAIN ANALYZE |
@@ -20,7 +21,7 @@
 
 ## 当前安装与历史验证
 
-新安装在空库执行 `schema.sql`；已有 19 表的环境先备份，核对当前结构，再审查并单次执行 `migrations/20260924-admin.sql`。迁移必须由具备 DDL 权限的数据库管理员执行，不能使用只有 DML 权限的运行用户 `veriqra_app`。迁移 SQL 不含 `USE`，必须显式选择目标库；不使用 `--force`，失败时保留现场并调查，不盲目重跑。此轮没有对生产或日常开发库执行迁移。旧版 680 行 seed 和 178 项约束测试只对应冻结的 19 表；历史验证脚本继续使用冻结 DDL，不把它误称为当前 24 表验证。
+新安装在空库执行 `schema.sql`。已有 19 表的环境必须先迁移 Administration；已有 24 表的环境先备份、核对当前结构，再审查并单次执行 `migrations/20260926-collaboration.sql`。迁移必须由具备 DDL 权限的数据库管理员执行，不能使用只有 DML 权限的运行用户 `veriqra_app`。迁移 SQL 不含 `USE`，必须显式选择目标库；不使用 `--force`，失败时保留现场并调查，不盲目重跑。此轮没有对生产或日常开发库执行迁移。旧版 680 行 seed 和 178 项约束测试只对应冻结的 19 表；历史验证脚本继续使用冻结 DDL，不把它误称为当前 29 表验证。
 
 ## 从空库复现历史 V1 验证
 
@@ -66,4 +67,4 @@ seed 不是重复同步脚本。约束测试失败时客户端停止，修正后
 - 40 FK 均 DELETE/UPDATE RESTRICT，51 CHECK 全部强制执行。
 - 行内来源/复核组合由 CHECK 保证；跨项目、权限、历史不可变和父状态等由 Service 保证。
 - 会话 UTC、严格 SQL 模式；比率 SQL NULL 在页面显示 N/A。
-- 上述 19 表计数和不变量是冻结核心模型的历史基线；当前 Administration 增量不改其字段语义。
+- 上述 19 表计数和不变量是冻结核心模型的历史基线；Administration 和 Collaboration 增量不改其字段语义。

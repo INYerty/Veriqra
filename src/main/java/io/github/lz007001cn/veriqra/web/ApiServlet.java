@@ -91,6 +91,11 @@ public final class ApiServlet extends HttpServlet {
                 case "test-plans" -> TestPlanHandler.handle(request, response, services, actor, projectId, parts);
                 case "automation" -> AutomationHandler.handleProject(request, response, services, actor, projectId, parts);
                 case "imports" -> TestImportHandler.handle(request, response, services, actor, projectId, parts);
+                case "managers", "members", "teams", "tasks" -> CollaborationHandler.handle(
+                        request, response,
+                        java.util.Objects.requireNonNull((io.github.lz007001cn.veriqra.service.CollaborationService)
+                                getServletContext().getAttribute(io.github.lz007001cn.veriqra.service.CollaborationService.class.getName()),
+                                "Collaboration service not initialized"), actor, projectId, parts);
                 default -> throw new HttpFailure(404, "NOT_FOUND", "Resource not found");
             }
             return;
