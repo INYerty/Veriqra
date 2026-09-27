@@ -17,6 +17,7 @@
     ? window.I18n.formatDateTime(value) : (value == null || value === '' ? '—' : String(value));
   const number = value => window.I18n.formatCredit(value);
   const display = value => window.I18n.enumLabel(value);
+  const operatingSystem = value => window.VeriqraAccessLogFormat.operatingSystem(value, t);
   const auditSummaryKeys = Object.freeze({
     'User created': 'admin.auditSummaryUserCreated',
     'User profile updated': 'admin.auditSummaryUserUpdated',
@@ -329,11 +330,11 @@
           row => [fmt(row.createdAt), row.usernameAttempted, display(row.result), row.ipAddress, row.browser, row.operatingSystem, display(row.deviceType)]); break;
         case 'access-logs': await renderLog('access-logs',
           [['from', t("admin.from", null, 'From'), 'datetime-local'], ['to', t("admin.to", null, 'To'), 'datetime-local'], ['username', t("common.username", null, 'Username')], ['ip', t("admin.ip", null, 'IP')],
-            ['status', t("common.status", null, 'Status')], ['method', t("admin.method", null, 'Method')], ['deviceType', t("admin.device", null, 'Device'), null, ['Desktop', 'Mobile', 'Tablet', 'Other']]],
-          [t("admin.time", null, 'Time'), t('admin.user', null, 'User'), t("admin.ip", null, 'IP'), t("admin.device", null, 'Device'), t("admin.method", null, 'Method'), t("admin.path", null, 'Path'), t("common.status", null, 'Status'), t("admin.requestID", null, 'Request ID'), t("admin.details", null, 'Details')],
-          row => [fmt(row.createdAt), row.username || (row.userId ? '#' + row.userId : t("admin.guest", null, 'Guest')), row.ipAddress, display(row.deviceType), row.httpMethod, row.requestPath,
+            ['status', t("common.status", null, 'Status')], ['method', t("admin.method", null, 'Method')], ['deviceType', t("admin.deviceType", null, 'Device Type'), null, ['Desktop', 'Mobile', 'Tablet', 'Other']]],
+          [t("admin.time", null, 'Time'), t('admin.user', null, 'User'), t("admin.ip", null, 'IP'), t("admin.operatingSystem", null, 'Operating System'), t("admin.method", null, 'Method'), t("admin.path", null, 'Path'), t("common.status", null, 'Status'), t("admin.requestID", null, 'Request ID'), t("admin.details", null, 'Details')],
+          row => [fmt(row.createdAt), row.username || (row.userId ? '#' + row.userId : t("admin.guest", null, 'Guest')), row.ipAddress, operatingSystem(row.operatingSystem), row.httpMethod, row.requestPath,
             row.statusCode, row.requestId, action(t("common.view", null, 'View'), () => modal(t("admin.accessDetails", null, 'Access details'), [
-              { name: 'browser', label: t("admin.browser", null, 'Browser'), value: row.browser, readonly: true }, { name: 'os', label: t("admin.operatingSystem", null, 'Operating system'), value: row.operatingSystem, readonly: true },
+              { name: 'browser', label: t("admin.browser", null, 'Browser'), value: row.browser, readonly: true }, { name: 'os', label: t("admin.operatingSystem", null, 'Operating System'), value: operatingSystem(row.operatingSystem), readonly: true },
               { name: 'device', label: t("admin.device", null, 'Device'), value: display(row.deviceType), readonly: true }, { name: 'agent', label: t("admin.fullUserAgent", null, 'Full User-Agent'), value: row.userAgent, readonly: true },
               { name: 'requestId', label: t("admin.requestID", null, 'Request ID'), value: row.requestId, readonly: true }
             ], t("common.close", null, 'Close'), async () => null))]); break;

@@ -6,6 +6,7 @@ const test = require('node:test');
 const vm = require('node:vm');
 
 const web = path.resolve(__dirname, '../../main/webapp');
+const bootstrapSource = fs.readFileSync(path.join(web, 'assets/js/locale-bootstrap.js'), 'utf8');
 const source = fs.readFileSync(path.join(web, 'assets/js/i18n.js'), 'utf8');
 const catalog = name => JSON.parse(fs.readFileSync(path.join(web, 'i18n', name + '.json'), 'utf8'));
 
@@ -13,12 +14,16 @@ function page(options = {}) {
   const saved = new Map(options.saved ? [['veriqra.locale', options.saved]] : []);
   const base = options.base || 'http://127.0.0.1:9000/veriqra/';
   const requested = [];
+  const listeners = new Map();
+  const classes = new Set();
   const doc = {
     currentScript: { src: new URL('assets/js/i18n.js', base).href },
     baseURI: new URL('admin/users.html', base).href,
-    documentElement: { lang: 'en' },
+    documentElement: { lang: 'en', classList: {
+      add: name => classes.add(name), remove: name => classes.delete(name), contains: name => classes.has(name)
+    } },
     querySelectorAll: () => [],
-    addEventListener: () => {},
+    addEventListener: (name, listener) => listeners.set(name, listener),
     dispatchEvent: () => {}
   };
   const window = {
@@ -30,11 +35,40 @@ function page(options = {}) {
       return { ok: true, json: async () => catalog(url.endsWith('zh-CN.json') ? 'zh-CN' : 'en') };
     }
   };
-  vm.runInNewContext(source, { window, document: doc, URL, Date, Intl, Promise,
+  const context = { window, document: doc, URL, Date, Intl, Promise,
     CustomEvent: class { constructor(type, details) { this.type = type; this.detail = details.detail; } },
-    console: { warn: () => {} } });
-  return { i18n: window.I18n, doc, saved, requested };
+    console: { warn: () => {} } };
+  vm.runInNewContext(bootstrapSource, context);
+  if (!options.noI18n) vm.runInNewContext(source, context);
+  return { i18n: window.I18n, doc, saved, requested, classes,
+    fire: name => { if (listeners.has(name)) listeners.get(name)(); } };
 }
+
+test('head bootstrap resolves stored, browser, English and invalid preferences before content paints', () => {
+  for (const [options, expected, pending] of [
+    [{ saved: 'zh-CN', languages: ['en-US'] }, 'zh-CN', true],
+    [{ languages: ['zh-SG', 'en-US'] }, 'zh-CN', true],
+    [{ saved: 'en', languages: ['zh-CN'] }, 'en', false],
+    [{ saved: 'invalid', languages: ['en-US'] }, 'en', false]
+  ]) {
+    const context = page(options);
+    assert.equal(context.doc.documentElement.lang, expected);
+    assert.equal(context.classes.has('i18n-pending'), pending);
+  }
+});
+
+test('pending text is released after translation success, failure, or a missing i18n script', async () => {
+  for (const options of [{ saved: 'zh-CN' }, { saved: 'zh-CN', fail: 'zh-CN' },
+    { saved: 'zh-CN', noI18n: true }]) {
+    const context = page(options);
+    assert.equal(context.classes.has('i18n-pending'), true);
+    context.fire('DOMContentLoaded');
+    if (context.i18n) await context.i18n.init();
+    await new Promise(setImmediate);
+    assert.equal(context.classes.has('i18n-pending'), false);
+    if (options.fail) assert.equal(context.i18n.getLocale(), 'en');
+  }
+});
 
 test('default, saved and browser locales resolve with invalid saved fallback', async () => {
   for (const [options, expected] of [
@@ -108,4 +142,11 @@ test('resource paths are context-safe and language-pack failure leaves readable 
     assert.equal(context.i18n.resourceUrl('zh-CN'), new URL('i18n/zh-CN.json', base).href);
     assert.equal(context.requested[0], new URL('i18n/en.json', base).href);
   }
+});
+
+test('English and Chinese catalogs have matching keys and interpolation placeholders', () => {
+  const en = catalog('en'), zh = catalog('zh-CN');
+  assert.deepEqual(Object.keys(en).sort(), Object.keys(zh).sort());
+  const placeholders = value => [...value.matchAll(/\{([A-Za-z][A-Za-z0-9]*)\}/g)].map(match => match[1]).sort();
+  for (const key of Object.keys(en)) assert.deepEqual(placeholders(en[key]), placeholders(zh[key]), key);
 });

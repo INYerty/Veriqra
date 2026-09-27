@@ -10,17 +10,6 @@
   let initPromise = null;
   let localeRequest = 0;
 
-  function browserLocale() {
-    const languages = global.navigator.languages && global.navigator.languages.length
-      ? global.navigator.languages : [global.navigator.language];
-    const first = String(languages[0] || '').toLowerCase();
-    return /^zh(?:$|-(?:cn|sg|hans)(?:-|$))/.test(first) ? 'zh-CN' : 'en';
-  }
-  function preferredLocale() {
-    let saved;
-    try { saved = global.localStorage.getItem(storageKey); } catch (_) { /* Private browsing can deny storage. */ }
-    return saved === 'en' || saved === 'zh-CN' ? saved : browserLocale();
-  }
   async function load(name) {
     if (catalogs[name]) return catalogs[name];
     const response = await global.fetch(new URL(name + '.json', resourceBase).href, { credentials: 'same-origin' });
@@ -76,7 +65,7 @@
     if (initialized) return Promise.resolve();
     if (initPromise) return initPromise;
     initPromise = (async function () {
-      locale = preferredLocale();
+      locale = global.VeriqraLocaleBootstrap ? global.VeriqraLocaleBootstrap.locale : 'en';
       try { await load('en'); } catch (error) { console.warn(error); }
       if (locale !== 'en') {
         try { await load(locale); } catch (error) { console.warn(error); locale = 'en'; }

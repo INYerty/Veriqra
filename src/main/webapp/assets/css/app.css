@@ -3,6 +3,7 @@ body { color: var(--ink); background: var(--canvas); font-family: Inter, "Segoe 
 a, button, input, select { transition: box-shadow .15s ease, background-color .15s ease; }
 :focus-visible { outline: 3px solid #16a3aa !important; outline-offset: 2px; }
 .eyebrow { color: var(--accent); font-size: .7rem; font-weight: 800; letter-spacing: .16em; }
+html.i18n-pending [data-i18n], html.i18n-pending [data-i18n-placeholder] { visibility: hidden; }
 .btn-primary { background: var(--accent); border-color: var(--accent); }
 .btn-primary:hover, .btn-primary:focus { background: var(--accent-dark); border-color: var(--accent-dark); }
 .form-control:focus, .form-select:focus { border-color: var(--accent); box-shadow: 0 0 0 .2rem #087e8530; }
