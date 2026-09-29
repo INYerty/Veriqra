@@ -28,7 +28,7 @@ public final class AdminHandler {
         if(parts.length==3 && parts[2].equals("dashboard")) {
             JsonHttp.method(response,method,"GET");
             JsonHttp.write(response,200,Map.of("metrics",admin.logs().metrics(actor),"credits",admin.credits().summary(actor),
-                    "system",Map.of("version","0.1.0-SNAPSHOT","applicationStatus","UP","databaseStatus","UP"),
+                    "system",Map.of("version",BuildInfo.current().version(),"applicationStatus","UP","databaseStatus","UP"),
                     "recentFailures",admin.logs().logins(actor,new LogFilter(null,null,null,"FAILURE",null,null,null,null,null,null),1,5).items(),
                     "recentActions",admin.logs().audits(actor,emptyFilter(),1,5).items()));return;
         }
@@ -61,14 +61,18 @@ public final class AdminHandler {
         }
         if(parts.length==3 && parts[2].equals("system")) {
             JsonHttp.method(response,method,"GET");
+            BuildInfo build=BuildInfo.current();
             String origin=io.github.lz007001cn.veriqra.config.EnvironmentVariables.get("PUBLIC_ORIGIN");
             String secure=io.github.lz007001cn.veriqra.config.EnvironmentVariables.get("SESSION_SECURE");
             Map<String,Object> data=new LinkedHashMap<>();
-            data.put("veriqraVersion","0.1.0-SNAPSHOT");data.put("applicationStatus","UP");
+            data.put("veriqraVersion",build.version());data.put("buildCommit",build.commit());
+            data.put("buildTime",build.buildTime());data.put("applicationStatus","UP");
             data.put("javaVersion",System.getProperty("java.version"));data.put("tomcatVersion",request.getServletContext().getServerInfo());
-            data.put("databaseStatus","UP");data.put("databaseVersion",admin.logs().databaseVersion(actor));
+            data.put("databaseVersion",admin.logs().databaseVersion(actor));
+            data.put("databaseTableCount",admin.logs().databaseTableCount(actor));data.put("databaseStatus","UP");
             data.put("uptimeSeconds",Math.max(0,(System.currentTimeMillis()-admin.startedAtMillis())/1000));
             data.put("serverTime",java.time.Instant.now().toString());
+            data.put("applicationTimeZone","Asia/Shanghai (UTC+8)");
             data.put("sessionSecureMode","true".equalsIgnoreCase(secure));
             data.put("publicOrigin",origin==null?"Not configured":origin);
             JsonHttp.write(response,200,data);return;

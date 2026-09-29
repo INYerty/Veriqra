@@ -2,6 +2,7 @@ package io.github.lz007001cn.veriqra.service;
 
 import io.github.lz007001cn.veriqra.exception.DataAccessException;
 import io.github.lz007001cn.veriqra.admin.JdbcCreditDao;
+import io.github.lz007001cn.veriqra.admin.Page;
 import io.github.lz007001cn.veriqra.dao.jdbc.JdbcTaskCreditDao;
 import io.github.lz007001cn.veriqra.model.*;
 import io.github.lz007001cn.veriqra.service.exception.*;
@@ -175,15 +176,17 @@ public final class DefaultCollaborationService implements CollaborationService {
         });
     }
 
-    @Override public List<WorkTask> listTasks(Long actorId, Long projectId) {
+    @Override public Page<WorkTask> listTasks(Long actorId, Long projectId, WorkTaskStatus status,
+                                               Long teamId, Long assigneeId, int page, int pageSize) {
         long project = id(projectId, "projectId");
+        if (page < 1 || page > 1_000_000 || pageSize < 1 || pageSize > 100) throw new ValidationException("Invalid task pagination");
+        if (teamId != null) id(teamId, "teamId");
+        if (assigneeId != null) id(assigneeId, "assigneeId");
         return transactions.execute(c -> {
             var d = factory.create(c);
             readableProject(d, actorId, project);
             boolean manager = activeManager(d, project, actorId);
-            return d.collaboration().listTasks(project).stream()
-                    .filter(task -> manager || task.assigneeUserId().equals(actorId)
-                            || isActiveLead(d, task.teamId(), actorId)).toList();
+            return d.collaboration().pageTasks(project, actorId, manager, status, teamId, assigneeId, page, pageSize);
         });
     }
     @Override public TaskDetail getTask(Long actorId, Long projectId, Long taskId) {

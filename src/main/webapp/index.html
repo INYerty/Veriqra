@@ -233,7 +233,17 @@
           </section>
           <section class="asset-panel" aria-labelledby="collab-tasks-heading">
             <h2 id="collab-tasks-heading" data-i18n="collab.tasks">Tasks</h2><p class="text-secondary small" data-i18n="collab.taskHelp">Assignees submit work; a different project manager or team lead accepts it. Acceptance grants the configured reward and one contribution point.</p>
+            <div class="row g-2 mb-3">
+              <div class="col-md-4"><label class="form-label" for="collab-filter-status" data-i18n="collab.filterStatus">Status filter</label><select id="collab-filter-status" class="form-select"><option value="" data-i18n="collab.allStatuses">All statuses</option><option value="OPEN" data-i18n="collab.status.open">Open</option><option value="IN_PROGRESS" data-i18n="collab.status.in_progress">In progress</option><option value="SUBMITTED" data-i18n="collab.status.submitted">Submitted</option><option value="ACCEPTED" data-i18n="collab.status.accepted">Accepted</option><option value="CANCELLED" data-i18n="collab.status.cancelled">Cancelled</option></select></div>
+              <div class="col-md-4"><label class="form-label" for="collab-filter-team" data-i18n="collab.filterTeam">Team filter</label><select id="collab-filter-team" class="form-select"><option value="" data-i18n="collab.allTeams">All teams</option></select></div>
+              <div class="col-md-4"><label class="form-label" for="collab-filter-assignee" data-i18n="collab.filterAssignee">Assignee filter</label><select id="collab-filter-assignee" class="form-select"><option value="" data-i18n="collab.allAssignees">All assignees</option></select></div>
+            </div>
             <div id="collab-tasks"></div>
+            <div class="d-flex flex-wrap align-items-center gap-2 mt-2" aria-label="Task pages" data-i18n-aria-label="collab.taskPages">
+              <button id="collab-task-prev" class="btn btn-outline-secondary btn-sm" type="button" data-i18n="collab.previous">Previous</button>
+              <span id="collab-task-page-info" class="small text-secondary" role="status" aria-live="polite"></span>
+              <button id="collab-task-next" class="btn btn-outline-secondary btn-sm" type="button" data-i18n="collab.next">Next</button>
+            </div>
             <form id="collab-task-form" class="d-none mt-3" novalidate>
               <h3 class="fs-5" data-i18n="collab.createTask">Create task</h3>
               <div class="row g-2 mb-2"><div class="col-md-6"><label class="form-label" for="collab-task-team" data-i18n="collab.team">Team</label><select id="collab-task-team" class="form-select" required></select></div><div class="col-md-6"><label class="form-label" for="collab-task-assignee" data-i18n="collab.assignee">Assignee</label><select id="collab-task-assignee" class="form-select" required></select></div></div>

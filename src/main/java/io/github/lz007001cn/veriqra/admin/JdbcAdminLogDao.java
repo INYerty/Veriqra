@@ -130,4 +130,9 @@ public final class JdbcAdminLogDao implements AdminLogDao {
         try(var s=connection.prepareStatement("SELECT VERSION()");var rs=s.executeQuery()){rs.next();return rs.getString(1);}
         catch(SQLException e){throw new DataAccessException("Database version",e);}
     }
+    @Override public int databaseTableCount() {
+        try (var s=connection.prepareStatement("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE()" );
+             var rs=s.executeQuery()) { rs.next(); return rs.getInt(1); }
+        catch(SQLException e){throw new DataAccessException("Database table count",e);}
+    }
 }

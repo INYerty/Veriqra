@@ -307,13 +307,12 @@
   }
   async function renderSystem() {
     const result = await load('system'); const dl = $('<dl class="admin-detail">');
-    dl.append($('<div>').append($('<dt>').text(t('system.applicationTimeZone', null, 'Application Time Zone')),
-      $('<dd>').text(t('system.displayTimeZone', null, 'Asia/Shanghai (UTC+8)'))));
     Object.entries(result).forEach(([key, value]) => dl.append($('<div>').append(
       $('<dt>').text(t('system.' + key, null, key)), $('<dd>').text(key.endsWith('Status') ? display(value)
         : key === 'sessionSecureMode' ? t(value ? 'system.enabled' : 'system.disabled')
           : key === 'publicOrigin' && value === 'Not configured' ? t('system.notConfigured')
-            : key === 'uptimeSeconds' ? window.I18n.formatNumber(value) : fmt(value)))));
+            : key === 'applicationTimeZone' ? t('system.displayTimeZone', null, value)
+              : key === 'databaseTableCount' || key === 'uptimeSeconds' ? window.I18n.formatNumber(value) : fmt(value)))));
     content.empty().append(panel(t("admin.readOnlySystemInformation", null, 'Read-only system information')).append(dl));
   }
   async function render() {

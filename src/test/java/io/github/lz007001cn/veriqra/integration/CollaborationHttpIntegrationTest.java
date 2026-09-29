@@ -87,6 +87,14 @@ class CollaborationHttpIntegrationTest extends ServiceFixture {
         long taskId = task.get("id").asLong();
         String taskPath = root + "/tasks/" + taskId;
         login(worker);
+        JsonNode taskPage = expect(200, "GET", root + "/tasks?page=1&pageSize=25&status=OPEN", null);
+        assertEquals(1, taskPage.get("total").asInt());
+        assertEquals(1, taskPage.get("items").size());
+        assertEquals(taskId, taskPage.get("items").get(0).get("id").asLong());
+        assertEquals(0, expect(200, "GET", root + "/tasks?page=2&pageSize=25", null).get("items").size());
+        expect(400, "GET", root + "/tasks?page=0", null);
+        expect(400, "GET", root + "/tasks?pageSize=101", null);
+        expect(400, "GET", root + "/tasks?status=INVALID", null);
         expect(403, "POST", root + "/teams", "{\"name\":\"Denied\",\"leadUserId\":" + worker.id() + "}");
         JsonNode started = expect(200, "POST", taskPath + "/status",
                 "{\"status\":\"IN_PROGRESS\",\"expectedVersion\":0}");

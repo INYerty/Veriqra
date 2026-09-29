@@ -10,4 +10,5 @@ public interface AdminLogDao {
     Page<AuditEvent> audits(LogFilter filter,int page,int size);
     AdminMetrics metrics(AdminTodayWindow today);
     String databaseVersion();
+    int databaseTableCount();
 }

@@ -338,7 +338,19 @@ class AuthHttpIntegrationTest extends MysqlFixture {
         assertTrue(activity.body().contains("LOGIN_ACTIVITY_ONLY"));
         assertFalse(json(activity).get("activity").get("items").get(0).get("userLastSeen").isNull());
         assertEquals(200, call("GET", "/admin/security", null).statusCode());
-        assertEquals(200, call("GET", "/admin/system", null).statusCode());
+        var system = call("GET", "/admin/system", null);
+        assertEquals(200, system.statusCode());
+        var runtime = json(system);
+        assertEquals("0.1.0-SNAPSHOT", runtime.get("veriqraVersion").asText());
+        assertTrue(runtime.get("buildCommit").asText().matches("[0-9a-f]{40}"));
+        assertDoesNotThrow(() -> java.time.Instant.parse(runtime.get("buildTime").asText()));
+        assertEquals("UP", runtime.get("databaseStatus").asText());
+        assertEquals(32, runtime.get("databaseTableCount").asInt());
+        assertEquals("Asia/Shanghai (UTC+8)", runtime.get("applicationTimeZone").asText());
+        assertFalse(system.body().contains("jdbc:mysql"));
+        assertFalse(system.body().contains("fixture-login-password"));
+        login(tester);
+        assertEquals(403, call("GET", "/admin/system", null).statusCode());
     }
 
     @Test void accessLogRecordsContainerGenerated500ForUncaughtStaticFailure() throws Exception {

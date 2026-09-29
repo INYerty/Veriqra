@@ -1,6 +1,7 @@
 package io.github.lz007001cn.veriqra.dao;
 
 import io.github.lz007001cn.veriqra.model.*;
+import io.github.lz007001cn.veriqra.admin.Page;
 import java.util.List;
 import java.util.Optional;
 
@@ -25,6 +26,8 @@ public interface CollaborationDao {
     Optional<WorkTask> findTask(long taskId);
     Optional<WorkTask> findTaskForUpdate(long taskId);
     List<WorkTask> listTasks(long projectId);
+    Page<WorkTask> pageTasks(long projectId, long actorId, boolean manager, WorkTaskStatus status,
+                             Long teamId, Long assigneeId, int page, int pageSize);
     WorkTask updateTask(WorkTask value);
     WorkTask updateTaskReward(long taskId, long rewardCredit, int expectedVersion);
     WorkTaskEvent appendEvent(WorkTaskEvent value);

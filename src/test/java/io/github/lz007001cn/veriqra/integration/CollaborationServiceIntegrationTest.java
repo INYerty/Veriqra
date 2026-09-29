@@ -11,6 +11,60 @@ import java.util.concurrent.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 class CollaborationServiceIntegrationTest extends ServiceFixture {
+    @Test void taskPagesFilterBeforeLimitingAndKeepStableScopeAndReward() {
+        User admin = actor("page-admin", SystemRole.ADMIN, UserStatus.ACTIVE);
+        User manager = actor("page-manager", SystemRole.USER, UserStatus.ACTIVE);
+        User leadA = actor("page-lead-a", SystemRole.USER, UserStatus.ACTIVE);
+        User leadB = actor("page-lead-b", SystemRole.USER, UserStatus.ACTIVE);
+        User workerA = actor("page-worker-a", SystemRole.USER, UserStatus.ACTIVE);
+        User workerB = actor("page-worker-b", SystemRole.USER, UserStatus.ACTIVE);
+        Project project = createProject(admin, "PAGETASK", manager, ProjectRole.TESTER);
+        addMember(project, leadA, ProjectRole.TESTER, MembershipStatus.ACTIVE);
+        addMember(project, leadB, ProjectRole.TESTER, MembershipStatus.ACTIVE);
+        addMember(project, workerA, ProjectRole.TESTER, MembershipStatus.ACTIVE);
+        addMember(project, workerB, ProjectRole.TESTER, MembershipStatus.ACTIVE);
+        collaboration.appointManager(admin.id(), project.id(), manager.id());
+        ProjectTeam a = collaboration.createTeam(manager.id(), project.id(), "Page A", leadA.id());
+        ProjectTeam b = collaboration.createTeam(manager.id(), project.id(), "Page B", leadB.id());
+        collaboration.setTeamMember(manager.id(), project.id(), a.id(), workerA.id(), MembershipStatus.ACTIVE);
+        collaboration.setTeamMember(manager.id(), project.id(), b.id(), workerB.id(), MembershipStatus.ACTIVE);
+        for (int i = 0; i < 60; i++)
+            collaboration.createTask(manager.id(), project.id(), a.id(), "Page A " + i, null, workerA.id(), 7L);
+        for (int i = 0; i < 5; i++)
+            collaboration.createTask(manager.id(), project.id(), b.id(), "Page B " + i, null, workerB.id(), 9L);
+        Project otherProject = createProject(admin, "PAGEOTHER", leadB, ProjectRole.TESTER);
+        collaboration.appointManager(admin.id(), otherProject.id(), leadB.id());
+        ProjectTeam otherTeam = collaboration.createTeam(leadB.id(), otherProject.id(), "Other project", leadB.id());
+        collaboration.createTask(leadB.id(), otherProject.id(), otherTeam.id(), "Not in first project", null, leadB.id());
+
+        var first = collaboration.listTasks(leadA.id(), project.id(), null, null, null, 1, 25);
+        var middle = collaboration.listTasks(leadA.id(), project.id(), null, null, null, 2, 25);
+        var last = collaboration.listTasks(leadA.id(), project.id(), null, null, null, 3, 25);
+        assertEquals(60, first.total());
+        assertEquals(25, first.items().size());
+        assertEquals(25, middle.items().size());
+        assertEquals(10, last.items().size());
+        assertTrue(collaboration.listTasks(leadA.id(), project.id(), null, null, null, 4, 25).items().isEmpty());
+        assertTrue(first.items().getLast().id() > middle.items().getFirst().id());
+        assertTrue(middle.items().getLast().id() > last.items().getFirst().id());
+        assertTrue(first.items().stream().allMatch(t -> t.teamId().equals(a.id()) && t.rewardCredit() == 7L));
+        assertEquals(65, collaboration.listTasks(manager.id(), project.id(), null, null, null, 1, 100).total());
+        assertThrows(ForbiddenException.class, () -> collaboration.listTasks(manager.id(), otherProject.id(), null, null, null, 1, 25));
+        assertEquals(1, collaboration.listTasks(leadB.id(), otherProject.id(), null, null, null, 1, 25).total());
+        assertEquals(5, collaboration.listTasks(leadB.id(), project.id(), null, null, null, 1, 25).total());
+        assertEquals(60, collaboration.listTasks(workerA.id(), project.id(), null, null, null, 1, 25).total());
+        assertEquals(60, collaboration.listTasks(manager.id(), project.id(), null, a.id(), workerA.id(), 1, 25).total());
+        WorkTask latest = first.items().getFirst();
+        collaboration.transitionTask(workerA.id(), project.id(), latest.id(), WorkTaskStatus.IN_PROGRESS, null, latest.lockVersion());
+        assertEquals(1, collaboration.listTasks(manager.id(), project.id(), WorkTaskStatus.IN_PROGRESS, a.id(), workerA.id(), 1, 25).total());
+        assertEquals(59, collaboration.listTasks(manager.id(), project.id(), WorkTaskStatus.OPEN, a.id(), workerA.id(), 1, 25).total());
+        assertThrows(ValidationException.class, () -> collaboration.listTasks(manager.id(), project.id(), null, null, null, 0, 25));
+        assertThrows(ValidationException.class, () -> collaboration.listTasks(manager.id(), project.id(), null, null, null, 1_000_001, 25));
+        assertThrows(ValidationException.class, () -> collaboration.listTasks(manager.id(), project.id(), null, null, null, 1, 0));
+        assertThrows(ValidationException.class, () -> collaboration.listTasks(manager.id(), project.id(), null, null, null, 1, 101));
+        assertThrows(ValidationException.class, () -> collaboration.listTasks(manager.id(), project.id(), null, -1L, null, 1, 25));
+    }
+
     @Test void scopedManagerAndLeadCanRunAnAuditedTaskWithoutPlatformAdminRights() {
         User admin = actor("collab-admin", SystemRole.ADMIN, UserStatus.ACTIVE);
         User manager = actor("collab-manager", SystemRole.USER, UserStatus.ACTIVE);
@@ -126,7 +180,7 @@ class CollaborationServiceIntegrationTest extends ServiceFixture {
         assertThrows(ForbiddenException.class, () -> collaboration.setTeamMember(leader.id(), project.id(), second.id(), worker.id(), MembershipStatus.ACTIVE));
         assertThrows(ForbiddenException.class, () -> collaboration.getTask(otherLeader.id(), project.id(), task.id()));
         assertThrows(ForbiddenException.class, () -> collaboration.listTeams(manager.id(), otherProject.id()));
-        assertThrows(ForbiddenException.class, () -> collaboration.listTasks(manager.id(), otherProject.id()));
+        assertThrows(ForbiddenException.class, () -> collaboration.listTasks(manager.id(), otherProject.id(), null, null, null, 1, 25));
         assertThrows(NotFoundException.class, () -> collaboration.createTask(manager.id(), otherProject.id(), first.id(), "Cross project", null, worker.id()));
 
         tx.inTransaction(c -> {

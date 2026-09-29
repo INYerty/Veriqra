@@ -21,4 +21,5 @@ public final class AdminLogService {
         return tx.execute(c->{policy.requireRead(c,actor);return new JdbcAdminLogDao(c).metrics(today);});
     }
     public String databaseVersion(long actor){return tx.execute(c->{policy.requireRead(c,actor);return new JdbcAdminLogDao(c).databaseVersion();});}
+    public int databaseTableCount(long actor){return tx.execute(c->{policy.requireRead(c,actor);return new JdbcAdminLogDao(c).databaseTableCount();});}
 }

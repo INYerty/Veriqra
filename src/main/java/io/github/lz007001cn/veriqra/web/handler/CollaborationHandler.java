@@ -51,7 +51,10 @@ public final class CollaborationHandler {
                 }
                 case "tasks" -> {
                     JsonHttp.method(res, method, "GET", "POST");
-                    if (method.equals("GET")) JsonHttp.write(res, 200, service.listTasks(actor, project));
+                    if (method.equals("GET")) JsonHttp.write(res, 200, service.listTasks(actor, project,
+                            status(req.getParameter("status")), optionalId(req.getParameter("teamId")),
+                            optionalId(req.getParameter("assigneeId")), page(req.getParameter("page"), 1, 1_000_000),
+                            page(req.getParameter("pageSize"), 25, 100)));
                     else {
                         TaskRequest body = JsonHttp.read(req, TaskRequest.class);
                         var task = service.createTask(actor, project, body.teamId(), body.title(), body.description(), body.assigneeUserId(),
@@ -150,5 +153,21 @@ public final class CollaborationHandler {
             if (value == null || !value.matches("(?:0|[1-9][0-9]*)")) throw new NumberFormatException();
             return Long.parseLong(value);
         } catch (NumberFormatException e) { throw new HttpFailure(400, "INVALID_CREDIT_AMOUNT", "Credit amount must be an integer within BIGINT range"); }
+    }
+    private static int page(String raw, int fallback, int max) {
+        if (raw == null) return fallback;
+        try {
+            int value = Integer.parseInt(raw);
+            if (value < 1 || value > max) throw new NumberFormatException();
+            return value;
+        } catch (NumberFormatException e) { throw new HttpFailure(400, "INVALID_PAGE", "Invalid pagination value"); }
+    }
+    private static Long optionalId(String raw) {
+        return raw == null || raw.isBlank() ? null : JsonHttp.positiveId(raw);
+    }
+    private static WorkTaskStatus status(String raw) {
+        if (raw == null || raw.isBlank()) return null;
+        try { return WorkTaskStatus.valueOf(raw); }
+        catch (IllegalArgumentException e) { throw new HttpFailure(400, "VALIDATION", "Invalid task status filter"); }
     }
 }

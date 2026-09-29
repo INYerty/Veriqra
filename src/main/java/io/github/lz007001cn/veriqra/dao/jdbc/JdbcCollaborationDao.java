@@ -1,6 +1,7 @@
 package io.github.lz007001cn.veriqra.dao.jdbc;
 
 import io.github.lz007001cn.veriqra.dao.CollaborationDao;
+import io.github.lz007001cn.veriqra.admin.Page;
 import io.github.lz007001cn.veriqra.exception.DataAccessException;
 import io.github.lz007001cn.veriqra.exception.OptimisticLockException;
 import io.github.lz007001cn.veriqra.model.*;
@@ -142,6 +143,45 @@ public final class JdbcCollaborationDao implements CollaborationDao {
     }
     @Override public List<WorkTask> listTasks(long projectId) {
         return query("List WorkTask", TASK + " WHERE project_id=? ORDER BY id DESC", s -> s.setLong(1, projectId), JdbcCollaborationDao::task);
+    }
+    @Override public Page<WorkTask> pageTasks(long projectId, long actorId, boolean manager, WorkTaskStatus status,
+                                               Long teamId, Long assigneeId, int page, int pageSize) {
+        // Apply visibility and filters before both COUNT and LIMIT. The lead predicate mirrors isActiveLead.
+        StringBuilder where = new StringBuilder(" WHERE t.project_id=? AND (?=1 OR t.assignee_user_id=? OR EXISTS ("
+                + "SELECT 1 FROM project_teams pt JOIN team_members tm ON tm.team_id=pt.id AND tm.user_id=? AND tm.status='ACTIVE' "
+                + "JOIN project_members pm ON pm.project_id=pt.project_id AND pm.user_id=? AND pm.status='ACTIVE' "
+                + "WHERE pt.id=t.team_id AND pt.project_id=t.project_id AND pt.status='ACTIVE' AND pt.lead_user_id=?))");
+        if (status != null) where.append(" AND t.status=?");
+        if (teamId != null) where.append(" AND t.team_id=?");
+        if (assigneeId != null) where.append(" AND t.assignee_user_id=?");
+        try (PreparedStatement count = connection.prepareStatement("SELECT COUNT(*) FROM work_tasks t" + where);
+             PreparedStatement rows = connection.prepareStatement(TASK + " t" + where + " ORDER BY t.id DESC LIMIT ? OFFSET ?")) {
+            bindTaskScope(count, projectId, actorId, manager, status, teamId, assigneeId);
+            int next = bindTaskScope(rows, projectId, actorId, manager, status, teamId, assigneeId);
+            rows.setInt(next++, pageSize);
+            rows.setLong(next, ((long) page - 1) * pageSize);
+            long total;
+            try (ResultSet result = count.executeQuery()) { result.next(); total = result.getLong(1); }
+            List<WorkTask> items = new ArrayList<>();
+            try (ResultSet result = rows.executeQuery()) {
+                while (result.next()) items.add(task(result));
+            }
+            return new Page<>(items, total, page, pageSize);
+        } catch (SQLException e) { throw new DataAccessException("Page visible WorkTask", e); }
+    }
+    private static int bindTaskScope(PreparedStatement s, long projectId, long actorId, boolean manager,
+                                      WorkTaskStatus status, Long teamId, Long assigneeId) throws SQLException {
+        int i = 1;
+        s.setLong(i++, projectId);
+        s.setInt(i++, manager ? 1 : 0);
+        s.setLong(i++, actorId); // assignee
+        s.setLong(i++, actorId); // active team membership
+        s.setLong(i++, actorId); // active project membership
+        s.setLong(i++, actorId); // current lead
+        if (status != null) s.setString(i++, status.name());
+        if (teamId != null) s.setLong(i++, teamId);
+        if (assigneeId != null) s.setLong(i++, assigneeId);
+        return i;
     }
     @Override public WorkTask updateTask(WorkTask value) {
         JdbcValues.writableVersion(value.lockVersion());

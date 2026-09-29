@@ -1,6 +1,7 @@
 package io.github.lz007001cn.veriqra.service;
 
 import io.github.lz007001cn.veriqra.model.*;
+import io.github.lz007001cn.veriqra.admin.Page;
 import java.util.List;
 
 public interface CollaborationService {
@@ -20,7 +21,8 @@ public interface CollaborationService {
     List<TeamMember> listTeamMembers(Long actorId, Long projectId, Long teamId);
     TeamMember setTeamMember(Long actorId, Long projectId, Long teamId, Long memberId, MembershipStatus status);
 
-    List<WorkTask> listTasks(Long actorId, Long projectId);
+    Page<WorkTask> listTasks(Long actorId, Long projectId, WorkTaskStatus status,
+                             Long teamId, Long assigneeId, int page, int pageSize);
     TaskDetail getTask(Long actorId, Long projectId, Long taskId);
     WorkTask createTask(Long actorId, Long projectId, Long teamId, String title, String description, Long assigneeId);
     WorkTask createTask(Long actorId, Long projectId, Long teamId, String title, String description, Long assigneeId, Long rewardCredit);
