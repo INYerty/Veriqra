@@ -276,11 +276,13 @@
   }
   async function renderCreditHistory() {
     const target = $('#credit-history'); if (!target.length) return;
-    const filter = filters([['username', t("common.username", null, 'Username')], ['type', t("admin.type", null, 'Type'), null, ['GRANT', 'RECLAIM']],
+    const filter = filters([['username', t("common.username", null, 'Username')], ['type', t("admin.type", null, 'Type'), null,
+      ['GRANT', 'RECLAIM', 'PEER_TRANSFER_OUT', 'PEER_TRANSFER_IN', 'HANDOFF_OUT', 'HANDOFF_IN', 'TASK_REWARD']],
       ['actorId', t("admin.actorID", null, 'Actor ID')], ['batchId', t("admin.batchID", null, 'Batch ID')], ['from', t("admin.from", null, 'From'), 'datetime-local'], ['to', t("admin.to", null, 'To'), 'datetime-local']], renderCreditHistory, creditHistoryPage);
     const result = await load('credits/transactions' + query({ page: String(creditHistoryPage.page) }));
-    target.empty().append(filter, table([t("admin.time", null, 'Time'), t("admin.userID", null, 'User ID'), t("admin.type", null, 'Type'), t("admin.amount", null, 'Amount'), t("admin.actorID", null, 'Actor ID'), t("admin.batchID", null, 'Batch ID'), t("admin.reason", null, 'Reason')], result.items,
-      row => [fmt(row.createdAt), row.userId, display(row.type), number(row.amount), row.actorUserId, row.batchId, row.reason]),
+    target.empty().append(filter, table([t("admin.time", null, 'Time'), t("admin.userID", null, 'User ID'), t("admin.type", null, 'Type'), t("admin.amount", null, 'Amount'), t("admin.actorID", null, 'Actor ID'), t("admin.batchID", null, 'Batch ID'), t("admin.reason", null, 'Reason'), t('collab.project', null, 'Project ID'), t('collab.reference', null, 'Reference'), t('collab.counterparty', null, 'Counterparty')], result.items,
+      row => [fmt(row.createdAt), row.userId, display(row.type), number(row.amount), row.actorUserId, row.batchId, row.reason,
+        row.projectId, row.transferId || row.taskId, row.counterpartyUserId]),
       paging(result, renderCreditHistory, creditHistoryPage));
   }
   async function renderLog(path, fields, headers, values) {

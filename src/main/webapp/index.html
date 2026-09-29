@@ -172,6 +172,30 @@
         </section>
         <section id="collaboration-workspace" class="d-none" aria-label="Teams and tasks" data-i18n-aria-label="collab.navigation">
           <div id="collab-feedback" class="alert d-none" role="status" aria-live="polite"></div>
+          <section class="asset-panel" aria-labelledby="collab-credits-heading">
+            <h2 id="collab-credits-heading" data-i18n="collab.myCredits">My Credits</h2>
+            <p class="text-secondary small" data-i18n="collab.creditDisclaimer">Experimental, non-monetary Credits. Transfers do not increase contribution score.</p>
+            <p id="collab-credit-balance" role="status"></p>
+            <form id="collab-transfer-form" class="row g-2 align-items-end" novalidate>
+              <div class="col-md-4"><label class="form-label" for="collab-transfer-user" data-i18n="collab.recipient">Recipient</label><select id="collab-transfer-user" class="form-select" required></select></div>
+              <div class="col-md-3"><label class="form-label" for="collab-transfer-amount" data-i18n="collab.amount">Amount</label><input id="collab-transfer-amount" class="form-control" inputmode="numeric" pattern="[1-9][0-9]*" maxlength="19" required></div>
+              <div class="col-md-3"><label class="form-label" for="collab-transfer-note" data-i18n="collab.note">Note (optional)</label><input id="collab-transfer-note" class="form-control" maxlength="500"></div>
+              <div class="col-md-2"><button class="btn btn-primary" type="submit" data-i18n="collab.transfer">Transfer</button></div>
+            </form>
+            <h3 class="fs-6 mt-3" data-i18n="collab.recentTransactions">Recent transactions</h3><div id="collab-credit-history"></div>
+          </section>
+          <section class="asset-panel" aria-labelledby="collab-contribution-heading">
+            <h2 id="collab-contribution-heading" data-i18n="collab.monthlyContribution">Monthly contribution</h2>
+            <p class="text-secondary small" data-i18n="collab.contributionHelp">One point per accepted task. Credits and transfers do not affect this score.</p>
+            <label for="collab-contribution-month" class="form-label" data-i18n="collab.month">Month (Asia/Shanghai)</label>
+            <input id="collab-contribution-month" class="form-control w-auto mb-2" type="month">
+            <div id="collab-contribution-list"></div>
+          </section>
+          <section class="asset-panel" aria-labelledby="collab-handoffs-heading">
+            <h2 id="collab-handoffs-heading" data-i18n="collab.handoffs">Task handoffs</h2>
+            <p class="text-secondary small" data-i18n="collab.handoffHelp">A pending offer does not move Credits or change the task. Payment occurs only when the recipient accepts.</p>
+            <div id="collab-handoffs"></div>
+          </section>
           <section class="asset-panel" aria-labelledby="collab-managers-heading">
             <div class="asset-panel-heading"><h2 id="collab-managers-heading" data-i18n="collab.managers">Project managers</h2><button id="collab-refresh" class="btn btn-outline-secondary btn-sm" type="button" data-i18n="common.refresh">Refresh</button></div>
             <p class="text-secondary small" data-i18n="collab.managerHelp">Platform administrators appoint managers from active project members. Managers cannot administer platform accounts.</p>
@@ -208,16 +232,19 @@
             </div>
           </section>
           <section class="asset-panel" aria-labelledby="collab-tasks-heading">
-            <h2 id="collab-tasks-heading" data-i18n="collab.tasks">Tasks</h2><p class="text-secondary small" data-i18n="collab.taskHelp">Assignees submit work; a different project manager or team lead accepts it. Task completion does not grant Credits.</p>
+            <h2 id="collab-tasks-heading" data-i18n="collab.tasks">Tasks</h2><p class="text-secondary small" data-i18n="collab.taskHelp">Assignees submit work; a different project manager or team lead accepts it. Acceptance grants the configured reward and one contribution point.</p>
             <div id="collab-tasks"></div>
             <form id="collab-task-form" class="d-none mt-3" novalidate>
               <h3 class="fs-5" data-i18n="collab.createTask">Create task</h3>
               <div class="row g-2 mb-2"><div class="col-md-6"><label class="form-label" for="collab-task-team" data-i18n="collab.team">Team</label><select id="collab-task-team" class="form-select" required></select></div><div class="col-md-6"><label class="form-label" for="collab-task-assignee" data-i18n="collab.assignee">Assignee</label><select id="collab-task-assignee" class="form-select" required></select></div></div>
               <div class="mb-2"><label class="form-label" for="collab-task-title" data-i18n="common.title">Title</label><input id="collab-task-title" class="form-control" maxlength="240" required></div>
               <div class="mb-2"><label class="form-label" for="collab-task-description" data-i18n="common.description">Description</label><textarea id="collab-task-description" class="form-control" rows="2"></textarea></div>
+              <div class="mb-2"><label class="form-label" for="collab-task-reward" data-i18n="collab.rewardCredit">Reward Credit</label><input id="collab-task-reward" class="form-control" inputmode="numeric" pattern="(?:0|[1-9][0-9]*)" maxlength="19" value="0" required></div>
               <button class="btn btn-primary" type="submit" data-i18n="collab.createTask">Create task</button>
             </form>
             <div id="collab-task-detail" class="d-none mt-4"><h3 id="collab-task-detail-title" class="fs-5"></h3><div id="collab-task-summary"></div><div class="mt-2"><label class="form-label" for="collab-task-note" data-i18n="collab.reviewNote">Review note (required when returning work)</label><input id="collab-task-note" class="form-control" maxlength="500"></div><div id="collab-task-actions" class="d-flex flex-wrap gap-2 mt-2"></div>
+              <form id="collab-reward-form" class="row g-2 align-items-end d-none mt-2" novalidate><div class="col-md-8"><label class="form-label" for="collab-reward-value" data-i18n="collab.rewardCredit">Reward Credit</label><input id="collab-reward-value" class="form-control" inputmode="numeric" pattern="(?:0|[1-9][0-9]*)" maxlength="19" required></div><div class="col-md-4"><button class="btn btn-outline-primary" type="submit" data-i18n="collab.updateReward">Update reward</button></div></form>
+              <form id="collab-handoff-form" class="row g-2 align-items-end d-none mt-2" novalidate><div class="col-md-4"><label class="form-label" for="collab-handoff-user" data-i18n="collab.recipient">Recipient</label><select id="collab-handoff-user" class="form-select" required></select></div><div class="col-md-3"><label class="form-label" for="collab-handoff-amount" data-i18n="collab.amount">Amount</label><input id="collab-handoff-amount" class="form-control" inputmode="numeric" pattern="[1-9][0-9]*" maxlength="19" required></div><div class="col-md-3"><label class="form-label" for="collab-handoff-note" data-i18n="collab.note">Note (optional)</label><input id="collab-handoff-note" class="form-control" maxlength="500"></div><div class="col-md-2"><button class="btn btn-outline-primary" type="submit" data-i18n="collab.offerHandoff">Offer handoff</button></div></form>
               <form id="collab-reassign-form" class="row g-2 align-items-end d-none mt-2" novalidate><div class="col-md-8"><label class="form-label" for="collab-reassign-user" data-i18n="collab.newAssignee">New assignee</label><select id="collab-reassign-user" class="form-select" required></select></div><div class="col-md-4"><button class="btn btn-outline-primary" type="submit" data-i18n="collab.reassign">Reassign</button></div></form>
               <div class="mt-3"><h4 class="fs-6" data-i18n="collab.history">Task history</h4><div id="collab-task-events"></div></div>
             </div>

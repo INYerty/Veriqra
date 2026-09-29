@@ -23,7 +23,19 @@ public interface CollaborationService {
     List<WorkTask> listTasks(Long actorId, Long projectId);
     TaskDetail getTask(Long actorId, Long projectId, Long taskId);
     WorkTask createTask(Long actorId, Long projectId, Long teamId, String title, String description, Long assigneeId);
+    WorkTask createTask(Long actorId, Long projectId, Long teamId, String title, String description, Long assigneeId, Long rewardCredit);
+    WorkTask setTaskReward(Long actorId, Long projectId, Long taskId, Long rewardCredit, Integer expectedVersion);
     WorkTask reassignTask(Long actorId, Long projectId, Long taskId, Long assigneeId, Integer expectedVersion);
     WorkTask transitionTask(Long actorId, Long projectId, Long taskId, WorkTaskStatus next,
                             String note, Integer expectedVersion);
+    CreditTransfer transferCredit(Long actorId, Long projectId, Long recipientId, Long amount, String note, String operationId);
+    MyCredits myCredits(Long actorId);
+    record MyCredits(String balance, java.util.List<io.github.lz007001cn.veriqra.admin.CreditEntry> transactions) { }
+    java.util.List<MonthlyContribution> monthlyContribution(Long actorId, Long projectId, String month);
+    TaskHandoffOffer offerHandoff(Long actorId, Long projectId, Long taskId, Long recipientId, Long amount,
+                                  String note, String operationId);
+    TaskHandoffOffer acceptHandoff(Long actorId, Long projectId, Long offerId);
+    TaskHandoffOffer declineHandoff(Long actorId, Long projectId, Long offerId);
+    TaskHandoffOffer cancelHandoff(Long actorId, Long projectId, Long offerId);
+    java.util.List<TaskHandoffOffer> listHandoffs(Long actorId, Long projectId);
 }

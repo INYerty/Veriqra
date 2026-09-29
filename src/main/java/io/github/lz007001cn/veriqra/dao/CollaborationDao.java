@@ -21,10 +21,12 @@ public interface CollaborationDao {
     TeamMember setTeamMember(long teamId, long projectId, long userId, MembershipStatus status);
 
     WorkTask insertTask(long projectId, long teamId, String title, String description, long assigneeId, long actorId);
+    WorkTask insertTask(long projectId, long teamId, String title, String description, long rewardCredit, long assigneeId, long actorId);
     Optional<WorkTask> findTask(long taskId);
     Optional<WorkTask> findTaskForUpdate(long taskId);
     List<WorkTask> listTasks(long projectId);
     WorkTask updateTask(WorkTask value);
+    WorkTask updateTaskReward(long taskId, long rewardCredit, int expectedVersion);
     WorkTaskEvent appendEvent(WorkTaskEvent value);
     List<WorkTaskEvent> listEvents(long taskId);
 }

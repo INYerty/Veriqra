@@ -13,7 +13,7 @@ public final class JdbcCollaborationDao implements CollaborationDao {
     private static final String MANAGER = "SELECT project_id,user_id,appointed_by,status,appointed_at,updated_at FROM project_managers";
     private static final String TEAM = "SELECT id,project_id,name,lead_user_id,status,created_by,created_at,updated_at,lock_version FROM project_teams";
     private static final String MEMBER = "SELECT team_id,project_id,user_id,status,joined_at,updated_at FROM team_members";
-    private static final String TASK = "SELECT id,project_id,team_id,title,description,assignee_user_id,created_by,status,accepted_by,accepted_at,created_at,updated_at,lock_version FROM work_tasks";
+    private static final String TASK = "SELECT id,project_id,team_id,title,description,reward_credit,assignee_user_id,created_by,status,accepted_by,accepted_at,created_at,updated_at,lock_version FROM work_tasks";
     private static final String EVENT = "SELECT id,task_id,actor_user_id,event_type,from_status,to_status,from_assignee_user_id,to_assignee_user_id,note,created_at FROM work_task_events";
     private final Connection connection;
 
@@ -125,9 +125,12 @@ public final class JdbcCollaborationDao implements CollaborationDao {
     }
 
     @Override public WorkTask insertTask(long projectId, long teamId, String title, String description, long assigneeId, long actorId) {
-        long id = insert("Insert WorkTask", "INSERT INTO work_tasks(project_id,team_id,title,description,assignee_user_id,created_by) VALUES(?,?,?,?,?,?)",
+        return insertTask(projectId, teamId, title, description, 0, assigneeId, actorId);
+    }
+    @Override public WorkTask insertTask(long projectId, long teamId, String title, String description, long rewardCredit, long assigneeId, long actorId) {
+        long id = insert("Insert WorkTask", "INSERT INTO work_tasks(project_id,team_id,title,description,reward_credit,assignee_user_id,created_by) VALUES(?,?,?,?,?,?,?)",
                 s -> { s.setLong(1, projectId); s.setLong(2, teamId); s.setString(3, title);
-                    s.setString(4, description); s.setLong(5, assigneeId); s.setLong(6, actorId); });
+                    s.setString(4, description); s.setLong(5, rewardCredit); s.setLong(6, assigneeId); s.setLong(7, actorId); });
         return findTask(id).orElseThrow(() -> new DataAccessException("Inserted task could not be read"));
     }
     @Override public Optional<WorkTask> findTask(long taskId) {
@@ -149,6 +152,13 @@ public final class JdbcCollaborationDao implements CollaborationDao {
             if (s.executeUpdate() != 1) throw new OptimisticLockException();
             return findTask(value.id()).orElseThrow(() -> new DataAccessException("Updated task could not be read"));
         } catch (SQLException e) { throw new DataAccessException("Update WorkTask", e); }
+    }
+    @Override public WorkTask updateTaskReward(long taskId, long rewardCredit, int expectedVersion) {
+        try (PreparedStatement s = connection.prepareStatement("UPDATE work_tasks SET reward_credit=?,updated_at=CURRENT_TIMESTAMP(6),lock_version=lock_version+1 WHERE id=? AND lock_version=? AND status='OPEN'")) {
+            s.setLong(1, rewardCredit); s.setLong(2, taskId); s.setInt(3, expectedVersion);
+            if (s.executeUpdate() != 1) throw new OptimisticLockException();
+            return findTask(taskId).orElseThrow(() -> new DataAccessException("Updated task could not be read"));
+        } catch (SQLException e) { throw new DataAccessException("Update WorkTask reward", e); }
     }
     @Override public WorkTaskEvent appendEvent(WorkTaskEvent value) {
         long id = insert("Append WorkTaskEvent", "INSERT INTO work_task_events(task_id,actor_user_id,event_type,from_status,to_status,from_assignee_user_id,to_assignee_user_id,note) VALUES(?,?,?,?,?,?,?,?)",
@@ -179,7 +189,7 @@ public final class JdbcCollaborationDao implements CollaborationDao {
     }
     private static WorkTask task(ResultSet r) throws SQLException {
         return new WorkTask(r.getLong("id"), r.getLong("project_id"), r.getLong("team_id"), r.getString("title"),
-                r.getString("description"), r.getLong("assignee_user_id"), r.getLong("created_by"),
+                r.getString("description"), r.getLong("reward_credit"), r.getLong("assignee_user_id"), r.getLong("created_by"),
                 WorkTaskStatus.valueOf(r.getString("status")), r.getObject("accepted_by", Long.class),
                 r.getObject("accepted_at", LocalDateTime.class), r.getObject("created_at", LocalDateTime.class),
                 r.getObject("updated_at", LocalDateTime.class), JdbcValues.version(r));

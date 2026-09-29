@@ -108,6 +108,22 @@ test('status, error and BigInt credit formatting keep machine values intact', as
   assert.equal(context.i18n.formatDateTime('2026-09-24T01:20:56.124168').includes('09:20:56'), true);
 });
 
+test('credit and handoff conflict codes render readable text in both languages', async () => {
+  const context = page({ saved: 'zh-CN' });
+  await context.i18n.init();
+  for (const code of ['INSUFFICIENT_CREDIT', 'TRANSFER_SELF_NOT_ALLOWED', 'HANDOFF_NOT_ALLOWED',
+    'HANDOFF_ALREADY_RESOLVED', 'HANDOFF_PENDING_EXISTS', 'TASK_REWARD_LOCKED']) {
+    const chinese = context.i18n.error({ code, message: 'Request conflicts with current state' });
+    assert.notEqual(chinese, code);
+    assert.notEqual(chinese, 'Request conflicts with current state');
+    await context.i18n.setLocale('en');
+    const english = context.i18n.error({ code, message: 'Request conflicts with current state' });
+    assert.notEqual(english, code);
+    assert.notEqual(english, 'Request conflicts with current state');
+    await context.i18n.setLocale('zh-CN');
+  }
+});
+
 test('UTC timestamps render in Asia/Shanghai in both locales, including the next calendar day', async () => {
   const context = page({ saved: 'en' });
   await context.i18n.init();

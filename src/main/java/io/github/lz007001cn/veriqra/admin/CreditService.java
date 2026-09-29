@@ -32,7 +32,8 @@ public final class CreditService {
     }
     public Page<CreditEntry> history(long actor,Long userId,String username,String type,Long actorId,String batchId,
                                      java.time.LocalDateTime from,java.time.LocalDateTime to,int page,int size) {
-        if(type!=null && !List.of("GRANT","RECLAIM").contains(type)) throw new ValidationException("Invalid credit type");
+        if(type!=null && !List.of("GRANT","RECLAIM","PEER_TRANSFER_OUT","PEER_TRANSFER_IN",
+                "HANDOFF_OUT","HANDOFF_IN","TASK_REWARD").contains(type)) throw new ValidationException("Invalid credit type");
         return tx.execute(c->{policy.requireRead(c,actor);return new JdbcCreditDao(c).listEntries(userId,username,type,actorId,batchId,from,to,page,size);});
     }
     public CreditAccountView grant(AdminContext ctx,long userId,long amount,String reason) {

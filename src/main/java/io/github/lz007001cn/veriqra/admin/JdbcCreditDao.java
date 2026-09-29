@@ -37,7 +37,7 @@ public final class JdbcCreditDao implements CreditDao {
             s.setLong(1,userId);s.setLong(2,amount);s.setString(3,type);s.setLong(4,actorId);s.setString(5,reason);s.setString(6,batchId);
             if(s.executeUpdate()!=1) throw new SQLException("Credit ledger insert failed");
             long id;try(var keys=s.getGeneratedKeys()){if(!keys.next())throw new SQLException("Missing ledger ID");id=keys.getLong(1);}
-            try(var find=connection.prepareStatement("SELECT id,user_id,amount,type,actor_user_id,reason,batch_id,created_at FROM credit_transactions WHERE id=?")) {
+            try(var find=connection.prepareStatement("SELECT t.id,t.user_id,t.amount,t.type,t.actor_user_id,t.reason,t.batch_id,t.created_at,t.project_id,t.transfer_id,t.task_id,CASE WHEN x.sender_user_id=t.user_id THEN x.recipient_user_id ELSE x.sender_user_id END AS counterparty_user_id FROM credit_transactions t LEFT JOIN credit_transfers x ON x.id=t.transfer_id WHERE t.id=?")) {
                 find.setLong(1,id);try(var rs=find.executeQuery()){if(!rs.next())throw new SQLException("Missing inserted ledger row");return map(rs);}
             }
         } catch(SQLException e) { throw new DataAccessException("Append credit ledger",e); }
@@ -69,9 +69,9 @@ public final class JdbcCreditDao implements CreditDao {
         if(batchId!=null){where.append(" AND t.batch_id=?");parameters.add(batchId);}
         if(from!=null){where.append(" AND t.created_at>=?");parameters.add(from);}
         if(to!=null){where.append(" AND t.created_at<?");parameters.add(to);}
-        String source="credit_transactions t JOIN users u ON u.id=t.user_id";
+        String source="credit_transactions t JOIN users u ON u.id=t.user_id LEFT JOIN credit_transfers x ON x.id=t.transfer_id";
         try(var count=connection.prepareStatement("SELECT COUNT(*) FROM "+source+where);
-            var s=connection.prepareStatement("SELECT t.id,t.user_id,t.amount,t.type,t.actor_user_id,t.reason,t.batch_id,t.created_at FROM "+source+where+" ORDER BY t.created_at DESC,t.id DESC LIMIT ? OFFSET ?")) {
+            var s=connection.prepareStatement("SELECT t.id,t.user_id,t.amount,t.type,t.actor_user_id,t.reason,t.batch_id,t.created_at,t.project_id,t.transfer_id,t.task_id,CASE WHEN x.sender_user_id=t.user_id THEN x.recipient_user_id ELSE x.sender_user_id END AS counterparty_user_id FROM "+source+where+" ORDER BY t.created_at DESC,t.id DESC LIMIT ? OFFSET ?")) {
             bind(count,parameters);bind(s,parameters);s.setInt(parameters.size()+1,size);s.setInt(parameters.size()+2,Math.multiplyExact(page-1,size));
             long total;try(var rs=count.executeQuery()){rs.next();total=rs.getLong(1);}
             List<CreditEntry> rows=new ArrayList<>();try(var rs=s.executeQuery()){while(rs.next())rows.add(map(rs));}
@@ -98,6 +98,7 @@ public final class JdbcCreditDao implements CreditDao {
     }
     private static CreditEntry map(ResultSet rs)throws SQLException {
         return new CreditEntry(rs.getLong(1),rs.getLong(2),rs.getLong(3),rs.getString(4),rs.getLong(5),
-                rs.getString(6),rs.getString(7),rs.getObject(8,LocalDateTime.class));
+                rs.getString(6),rs.getString(7),rs.getObject(8,LocalDateTime.class),rs.getObject(9,Long.class),
+                rs.getString(10),rs.getObject(11,Long.class),rs.getObject(12,Long.class));
     }
 }

@@ -87,7 +87,14 @@
     LAST_ADMIN_REQUIRED: 'errors.lastAdminRequired', USERNAME_CONFLICT: 'errors.usernameConflict',
     INSUFFICIENT_CREDIT_BALANCE: 'errors.insufficientCredits', INVALID_CREDIT_AMOUNT: 'errors.invalidCreditAmount',
     BATCH_TOO_LARGE: 'errors.batchTooLarge', BATCH_RECIPIENTS_CHANGED: 'errors.batchRecipientsChanged',
-    OPTIMISTIC_LOCK_CONFLICT: 'errors.optimisticLock', FORBIDDEN: 'errors.forbidden'
+    OPTIMISTIC_LOCK_CONFLICT: 'errors.optimisticLock', FORBIDDEN: 'errors.forbidden',
+    INSUFFICIENT_CREDIT: 'errors.insufficientCredits', CREDIT_BALANCE_OVERFLOW: 'errors.creditOverflow',
+    TRANSFER_SELF_NOT_ALLOWED: 'errors.transferSelf', TRANSFER_REQUEST_CONFLICT: 'errors.transferRequestConflict',
+    HANDOFF_SELF_NOT_ALLOWED: 'errors.handoffSelf', HANDOFF_NOT_ALLOWED: 'errors.handoffNotAllowed',
+    HANDOFF_ALREADY_RESOLVED: 'errors.handoffResolved', HANDOFF_ASSIGNEE_CHANGED: 'errors.handoffAssigneeChanged',
+    HANDOFF_PENDING_EXISTS: 'errors.handoffPending', HANDOFF_REQUEST_CONFLICT: 'errors.handoffRequestConflict',
+    CREDIT_ACCOUNT_MISSING: 'errors.creditAccountMissing', TASK_REWARD_LOCKED: 'errors.rewardLocked',
+    INVALID_OPERATION_ID: 'errors.invalidOperationId', INVALID_MONTH: 'errors.invalidMonth'
   });
   function error(error, fallback) {
     const key = error && errorKeys[error.code];

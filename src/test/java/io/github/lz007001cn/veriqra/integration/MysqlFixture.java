@@ -51,8 +51,12 @@ abstract class MysqlFixture {
         Matcher names=Pattern.compile("CREATE TABLE `([a-z_]+)`").matcher(schema);
         int count=0;
         while(names.find()) count++;
-        if(count!=29) throw new IllegalStateException("Unexpected V1 plus Administration and Collaboration schema");
+        if(count!=32) throw new IllegalStateException("Unexpected V1 plus Administration, Collaboration and Credit schema");
         installSchema(owner,schema,createdTables);
+        // ALTER adds a FK from this previously-created table to newly-created credit_transfers.
+        // Drop it first during reverse-order cleanup while keeping FOREIGN_KEY_CHECKS enabled.
+        createdTables.remove("credit_transactions");
+        createdTables.add("credit_transactions");
         pool=new ConnectionPool(config); tx=new JdbcTransactionManager(pool);
     }
 
@@ -101,9 +105,15 @@ abstract class MysqlFixture {
             //noinspection SqlWithoutWhere
             s.executeUpdate("DELETE FROM credit_transactions");
             //noinspection SqlWithoutWhere
+            s.executeUpdate("DELETE FROM credit_transfers");
+            //noinspection SqlWithoutWhere
+            s.executeUpdate("DELETE FROM task_handoff_offers");
+            //noinspection SqlWithoutWhere
             s.executeUpdate("DELETE FROM credit_accounts");
             //noinspection SqlWithoutWhere
             s.executeUpdate("DELETE FROM work_task_events");
+            //noinspection SqlWithoutWhere
+            s.executeUpdate("DELETE FROM contribution_events");
             //noinspection SqlWithoutWhere
             s.executeUpdate("DELETE FROM work_tasks");
             //noinspection SqlWithoutWhere

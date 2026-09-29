@@ -1,11 +1,16 @@
 package io.github.lz007001cn.veriqra.service;
 
 import io.github.lz007001cn.veriqra.exception.DataAccessException;
+import io.github.lz007001cn.veriqra.admin.JdbcCreditDao;
+import io.github.lz007001cn.veriqra.dao.jdbc.JdbcTaskCreditDao;
 import io.github.lz007001cn.veriqra.model.*;
 import io.github.lz007001cn.veriqra.service.exception.*;
 import io.github.lz007001cn.veriqra.service.support.*;
 import java.time.Clock;
 import java.time.LocalDateTime;
+import java.time.YearMonth;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.*;
 
 /** Project-scoped collaboration. Platform account administration remains separate. */
@@ -194,7 +199,12 @@ public final class DefaultCollaborationService implements CollaborationService {
     }
     @Override public WorkTask createTask(Long actorId, Long projectId, Long teamId, String title,
                                          String description, Long assigneeId) {
+        return createTask(actorId, projectId, teamId, title, description, assigneeId, 0L);
+    }
+    @Override public WorkTask createTask(Long actorId, Long projectId, Long teamId, String title,
+                                         String description, Long assigneeId, Long rewardCredit) {
         long project = id(projectId, "projectId"), team = id(teamId, "teamId"), assignee = id(assigneeId, "assigneeId");
+        long reward = nonnegative(rewardCredit, "rewardCredit");
         String name = ServiceValidation.requiredText(title, 240, "title").trim();
         ServiceValidation.optionalText(description, 10000, "description");
         return transactions.execute(c -> {
@@ -203,9 +213,26 @@ public final class DefaultCollaborationService implements CollaborationService {
             ProjectTeam current = activeTeam(d, project, team);
             requireManagerOrLead(d, current, actorId);
             activeTeamMember(d, current, assignee);
-            WorkTask task = d.collaboration().insertTask(project, team, name, description, assignee, actorId);
+            WorkTask task = d.collaboration().insertTask(project, team, name, description, reward, assignee, actorId);
             event(d, task, actorId, WorkTaskEventType.CREATED, null, null, null);
             return task;
+        });
+    }
+    @Override public WorkTask setTaskReward(Long actorId, Long projectId, Long taskId, Long rewardCredit,
+                                            Integer expectedVersion) {
+        long project = id(projectId, "projectId"), task = id(taskId, "taskId");
+        long reward = nonnegative(rewardCredit, "rewardCredit");
+        ServiceValidation.required(expectedVersion, "expectedVersion");
+        return transactions.execute(c -> {
+            var d = factory.create(c);
+            activeProject(d, project);
+            WorkTask observed = requireTask(d, project, task);
+            ProjectTeam team = activeTeam(d, project, observed.teamId());
+            WorkTask current = lockedTask(d, project, task);
+            requireManagerOrLead(d, team, actorId);
+            requireVersion(current.lockVersion(), expectedVersion);
+            if (current.status() != WorkTaskStatus.OPEN) throw new ConflictException("TASK_REWARD_LOCKED");
+            return d.collaboration().updateTaskReward(task, reward, expectedVersion);
         });
     }
     @Override public WorkTask reassignTask(Long actorId, Long projectId, Long taskId, Long assigneeId,
@@ -225,6 +252,7 @@ public final class DefaultCollaborationService implements CollaborationService {
             if (current.assigneeUserId().equals(assignee)) throw new ConflictException("Task already has this assignee");
             activeTeamMember(d, team, assignee);
             WorkTask updated = d.collaboration().updateTask(copy(current, assignee, current.status(), null, null));
+            new JdbcTaskCreditDao(c).cancelPendingOffersForTask(task);
             event(d, updated, actorId, WorkTaskEventType.REASSIGNED, current.status(), current.assigneeUserId(), null);
             return updated;
         });
@@ -276,13 +304,246 @@ public final class DefaultCollaborationService implements CollaborationService {
             LocalDateTime acceptedAt = acceptedBy == null ? null : LocalDateTime.ofInstant(clock.instant(), java.time.ZoneOffset.UTC);
             WorkTask updated = d.collaboration().updateTask(copy(current, current.assigneeUserId(), next, acceptedBy, acceptedAt));
             event(d, updated, actor.id(), type, current.status(), current.assigneeUserId(), reason);
+            if (next == WorkTaskStatus.ACCEPTED) {
+                var credit = new JdbcTaskCreditDao(c);
+                if (current.rewardCredit() > 0) {
+                    var account = new JdbcCreditDao(c);
+                    var before = account.lockAccount(current.assigneeUserId())
+                            .orElseThrow(() -> new ConflictException("CREDIT_ACCOUNT_MISSING"));
+                    account.updateBalance(before, addCredit(before.balance(), current.rewardCredit()));
+                    credit.appendLedger(current.assigneeUserId(), current.rewardCredit(), "TASK_REWARD",
+                            actor.id(), "Accepted task reward", project, null, task);
+                }
+                credit.appendContribution(project, current.assigneeUserId(), task, acceptedAt);
+            } else if (next == WorkTaskStatus.SUBMITTED || next == WorkTaskStatus.CANCELLED) {
+                new JdbcTaskCreditDao(c).cancelPendingOffersForTask(task);
+            }
             return updated;
         });
+    }
+
+    @Override public CreditTransfer transferCredit(Long actorId, Long projectId, Long recipientId, Long amount,
+                                                    String note, String operationId) {
+        long project = id(projectId, "projectId"), sender = id(actorId, "actorId");
+        long recipient = id(recipientId, "recipientId"), creditAmount = positive(amount, "amount");
+        if (sender == recipient) throw new ValidationException("TRANSFER_SELF_NOT_ALLOWED");
+        String key = uuid(operationId), reason = ServiceValidation.optionalText(note, 500, "note");
+        try {
+            return transactions.execute(c -> {
+                var d = factory.create(c);
+                activeProject(d, project);
+                activeMember(d, project, sender);
+                activeMember(d, project, recipient);
+                var workflow = new JdbcTaskCreditDao(c);
+                var previous = workflow.findTransfer(key);
+                if (previous.isPresent()) return sameTransfer(previous.get(), project, sender, recipient, creditAmount, reason);
+                var result = moveCredit(c, workflow, key, project, sender, recipient, creditAmount,
+                        "PEER", null, reason);
+                return result;
+            });
+        } catch (DataAccessException failure) {
+            if (failure.getVendorCode() != 1062) throw failure;
+            return transactions.execute(c -> new JdbcTaskCreditDao(c).findTransfer(key)
+                    .map(t -> sameTransfer(t, project, sender, recipient, creditAmount, reason))
+                    .orElseThrow(() -> new ConflictException("TRANSFER_REQUEST_CONFLICT", failure)));
+        }
+    }
+
+    @Override public MyCredits myCredits(Long actorId) {
+        long actor = id(actorId, "actorId");
+        return transactions.execute(c -> {
+            var d = factory.create(c);
+            access.requireActiveUser(d.users(), actor);
+            var credit = new JdbcCreditDao(c);
+            var account = credit.findAccount(actor).orElseThrow(() -> new NotFoundException("Credit account not found"));
+            return new MyCredits(Long.toString(account.balance()),
+                    credit.listEntries(actor, null, null, null, null, null, null, 1, 50).items());
+        });
+    }
+
+    @Override public List<MonthlyContribution> monthlyContribution(Long actorId, Long projectId, String month) {
+        long project = id(projectId, "projectId");
+        YearMonth value;
+        try { value = YearMonth.parse(month); }
+        catch (RuntimeException e) { throw new ValidationException("INVALID_MONTH"); }
+        var zone = ZoneId.of("Asia/Shanghai");
+        LocalDateTime from = LocalDateTime.ofInstant(value.atDay(1).atStartOfDay(zone).toInstant(), ZoneOffset.UTC);
+        LocalDateTime to = LocalDateTime.ofInstant(value.plusMonths(1).atDay(1).atStartOfDay(zone).toInstant(), ZoneOffset.UTC);
+        return transactions.execute(c -> {
+            var d = factory.create(c);
+            readableProject(d, actorId, project);
+            activeMember(d, project, id(actorId, "actorId"));
+            return new JdbcTaskCreditDao(c).monthlyContribution(project, from, to);
+        });
+    }
+
+    @Override public TaskHandoffOffer offerHandoff(Long actorId, Long projectId, Long taskId, Long recipientId,
+                                                   Long amount, String note, String operationId) {
+        long project = id(projectId, "projectId"), task = id(taskId, "taskId"), actor = id(actorId, "actorId");
+        long recipient = id(recipientId, "recipientId"), creditAmount = positive(amount, "amount");
+        if (actor == recipient) throw new ValidationException("HANDOFF_SELF_NOT_ALLOWED");
+        String key = uuid(operationId), reason = ServiceValidation.optionalText(note, 500, "note");
+        try {
+            return transactions.execute(c -> {
+                var d = factory.create(c);
+                activeProject(d, project);
+                activeMember(d, project, actor);
+                WorkTask observed = requireTask(d, project, task);
+                ProjectTeam team = activeTeam(d, project, observed.teamId());
+                WorkTask current = lockedTask(d, project, task);
+                var workflow = new JdbcTaskCreditDao(c);
+                var previous = workflow.findOfferByRequestKey(key);
+                if (previous.isPresent()) return sameOffer(previous.get(), project, task, actor, recipient, creditAmount, reason);
+                if (!current.assigneeUserId().equals(actor)) throw new ForbiddenException("Only current assignee may offer a handoff");
+                handoffState(current);
+                activeTeamMember(d, team, recipient);
+                return workflow.insertOffer(key, project, task, actor, recipient, creditAmount, reason);
+            });
+        } catch (DataAccessException failure) {
+            if (failure.getVendorCode() != 1062) throw failure;
+            return transactions.execute(c -> new JdbcTaskCreditDao(c).findOfferByRequestKey(key)
+                    .map(o -> sameOffer(o, project, task, actor, recipient, creditAmount, reason))
+                    .orElseThrow(() -> new ConflictException("HANDOFF_PENDING_EXISTS", failure)));
+        }
+    }
+
+    @Override public TaskHandoffOffer acceptHandoff(Long actorId, Long projectId, Long offerId) {
+        long project = id(projectId, "projectId"), offerIdValue = id(offerId, "offerId"), actor = id(actorId, "actorId");
+        return transactions.execute(c -> {
+            var d = factory.create(c);
+            activeProject(d, project);
+            var workflow = new JdbcTaskCreditDao(c);
+            TaskHandoffOffer observed = requireOffer(workflow, project, offerIdValue);
+            WorkTask observedTask = requireTask(d, project, observed.taskId());
+            ProjectTeam team = activeTeam(d, project, observedTask.teamId());
+            WorkTask current = lockedTask(d, project, observed.taskId());
+            TaskHandoffOffer offer = requireOfferLocked(workflow, project, offerIdValue);
+            if (!offer.toUserId().equals(actor)) throw new ForbiddenException("Only recipient may accept handoff");
+            if (!offer.status().equals("PENDING")) throw new ConflictException("HANDOFF_ALREADY_RESOLVED");
+            if (!current.assigneeUserId().equals(offer.fromUserId())) throw new ConflictException("HANDOFF_ASSIGNEE_CHANGED");
+            handoffState(current);
+            activeTeamMember(d, team, actor);
+            activeTeamMember(d, team, offer.fromUserId());
+            moveCredit(c, workflow, UUID.randomUUID().toString(), project, offer.fromUserId(), actor,
+                    offer.creditAmount(), "HANDOFF", offer.id(), offer.note());
+            WorkTask updated = d.collaboration().updateTask(copy(current, actor, current.status(), null, null));
+            event(d, updated, actor, WorkTaskEventType.HANDOFF_ACCEPTED, current.status(), offer.fromUserId(), offer.note());
+            workflow.resolveOffer(offer.id(), "ACCEPTED");
+            return workflow.findOffer(offer.id()).orElseThrow();
+        });
+    }
+
+    @Override public TaskHandoffOffer declineHandoff(Long actorId, Long projectId, Long offerId) {
+        return resolveHandoff(actorId, projectId, offerId, "DECLINED");
+    }
+    @Override public TaskHandoffOffer cancelHandoff(Long actorId, Long projectId, Long offerId) {
+        return resolveHandoff(actorId, projectId, offerId, "CANCELLED");
+    }
+    @Override public List<TaskHandoffOffer> listHandoffs(Long actorId, Long projectId) {
+        long project = id(projectId, "projectId"), actor = id(actorId, "actorId");
+        return transactions.execute(c -> {
+            var d = factory.create(c);
+            readableProject(d, actor, project);
+            activeMember(d, project, actor);
+            return new JdbcTaskCreditDao(c).listOffers(project, actor);
+        });
+    }
+
+    private TaskHandoffOffer resolveHandoff(Long actorId, Long projectId, Long offerId, String outcome) {
+        long project = id(projectId, "projectId"), offer = id(offerId, "offerId"), actor = id(actorId, "actorId");
+        return transactions.execute(c -> {
+            var d = factory.create(c);
+            activeProject(d, project);
+            var workflow = new JdbcTaskCreditDao(c);
+            TaskHandoffOffer observed = requireOffer(workflow, project, offer);
+            WorkTask task = requireTask(d, project, observed.taskId());
+            ProjectTeam team = activeTeam(d, project, task.teamId());
+            lockedTask(d, project, task.id());
+            TaskHandoffOffer current = requireOfferLocked(workflow, project, offer);
+            if (!current.status().equals("PENDING")) throw new ConflictException("HANDOFF_ALREADY_RESOLVED");
+            activeMember(d, project, actor);
+            if (outcome.equals("DECLINED") && !current.toUserId().equals(actor))
+                throw new ForbiddenException("Only recipient may decline handoff");
+            if (outcome.equals("CANCELLED") && !current.fromUserId().equals(actor)
+                    && !activeManager(d, project, actor) && !isActiveLead(d, team.id(), actor))
+                throw new ForbiddenException("Handoff cancellation is not allowed");
+            workflow.resolveOffer(offer, outcome);
+            return workflow.findOffer(offer).orElseThrow();
+        });
+    }
+
+    private static TaskHandoffOffer requireOffer(JdbcTaskCreditDao dao, long project, long id) {
+        TaskHandoffOffer value = dao.findOffer(id).orElseThrow(() -> new NotFoundException("Handoff offer not found"));
+        if (!value.projectId().equals(project)) throw new NotFoundException("Handoff offer not found");
+        return value;
+    }
+    private static TaskHandoffOffer requireOfferLocked(JdbcTaskCreditDao dao, long project, long id) {
+        TaskHandoffOffer value = dao.lockOffer(id).orElseThrow(() -> new NotFoundException("Handoff offer not found"));
+        if (!value.projectId().equals(project)) throw new NotFoundException("Handoff offer not found");
+        return value;
+    }
+    private static void handoffState(WorkTask task) {
+        if (task.status() != WorkTaskStatus.OPEN && task.status() != WorkTaskStatus.IN_PROGRESS)
+            throw new ConflictException("HANDOFF_NOT_ALLOWED");
+    }
+    private static String uuid(String value) {
+        try { return UUID.fromString(value).toString(); }
+        catch (RuntimeException e) { throw new ValidationException("INVALID_OPERATION_ID"); }
+    }
+    private static CreditTransfer sameTransfer(CreditTransfer value, long project, long sender, long recipient,
+                                               long amount, String note) {
+        if (!value.projectId().equals(project) || !value.senderUserId().equals(sender)
+                || !value.recipientUserId().equals(recipient) || !value.amount().equals(amount)
+                || !Objects.equals(value.note(), note) || !value.kind().equals("PEER"))
+            throw new ConflictException("TRANSFER_REQUEST_CONFLICT");
+        return value;
+    }
+    private static TaskHandoffOffer sameOffer(TaskHandoffOffer value, long project, long task, long sender,
+                                              long recipient, long amount, String note) {
+        if (!value.projectId().equals(project) || !value.taskId().equals(task)
+                || !value.fromUserId().equals(sender) || !value.toUserId().equals(recipient)
+                || !value.creditAmount().equals(amount) || !Objects.equals(value.note(), note))
+            throw new ConflictException("HANDOFF_REQUEST_CONFLICT");
+        return value;
+    }
+    private static CreditTransfer moveCredit(java.sql.Connection c, JdbcTaskCreditDao workflow, String key,
+                                             long project, long sender, long recipient, long amount,
+                                             String kind, Long offerId, String note) {
+        var account = new JdbcCreditDao(c);
+        var first = account.lockAccount(Math.min(sender, recipient))
+                .orElseThrow(() -> new ConflictException("CREDIT_ACCOUNT_MISSING"));
+        var second = account.lockAccount(Math.max(sender, recipient))
+                .orElseThrow(() -> new ConflictException("CREDIT_ACCOUNT_MISSING"));
+        var debit = first.userId() == sender ? first : second;
+        var credit = first.userId() == recipient ? first : second;
+        if (debit.balance() < amount) throw new ConflictException("INSUFFICIENT_CREDIT");
+        long after = addCredit(credit.balance(), amount);
+        CreditTransfer transfer = workflow.insertTransfer(key, project, sender, recipient, amount, kind, offerId, note);
+        account.updateBalance(debit, debit.balance() - amount);
+        account.updateBalance(credit, after);
+        long actor = kind.equals("PEER") ? sender : recipient;
+        workflow.appendLedger(sender, amount, kind.equals("PEER") ? "PEER_TRANSFER_OUT" : "HANDOFF_OUT",
+                actor, note, project, key, null);
+        workflow.appendLedger(recipient, amount, kind.equals("PEER") ? "PEER_TRANSFER_IN" : "HANDOFF_IN",
+                actor, note, project, key, null);
+        return transfer;
     }
 
     private static long id(Long value, String field) {
         if (value == null || value <= 0) throw new ValidationException(field + " must be a positive ID");
         return value;
+    }
+    private static long nonnegative(Long value, String field) {
+        if (value == null || value < 0) throw new ValidationException(field + " must be non-negative");
+        return value;
+    }
+    private static long positive(Long value, String field) {
+        if (value == null || value <= 0) throw new ValidationException(field + " must be positive");
+        return value;
+    }
+    private static long addCredit(long balance, long amount) {
+        try { return Math.addExact(balance, amount); }
+        catch (ArithmeticException e) { throw new ConflictException("CREDIT_BALANCE_OVERFLOW"); }
     }
     private Project readableProject(ServiceDaos d, Long actorId, long projectId) {
         Project project = d.projects().findById(projectId).orElseThrow(() -> new NotFoundException("Project does not exist"));
@@ -365,7 +626,7 @@ public final class DefaultCollaborationService implements CollaborationService {
         return new MemberView(user.id(), user.username(), user.displayName(), member.projectRole(), member.status(), user.status());
     }
     private static WorkTask copy(WorkTask old, Long assignee, WorkTaskStatus status, Long acceptedBy, LocalDateTime acceptedAt) {
-        return new WorkTask(old.id(), old.projectId(), old.teamId(), old.title(), old.description(), assignee,
+        return new WorkTask(old.id(), old.projectId(), old.teamId(), old.title(), old.description(), old.rewardCredit(), assignee,
                 old.createdBy(), status, acceptedBy, acceptedAt, old.createdAt(), old.updatedAt(), old.lockVersion());
     }
     private static void event(ServiceDaos d, WorkTask task, long actorId, WorkTaskEventType type,

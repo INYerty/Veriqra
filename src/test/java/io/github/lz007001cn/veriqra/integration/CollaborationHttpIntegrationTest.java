@@ -1,6 +1,7 @@
 package io.github.lz007001cn.veriqra.integration;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import io.github.lz007001cn.veriqra.admin.*;
 import io.github.lz007001cn.veriqra.dao.jdbc.JdbcUserDao;
 import io.github.lz007001cn.veriqra.model.*;
 import io.github.lz007001cn.veriqra.service.DefaultAuthService;
@@ -13,6 +14,7 @@ import java.net.*;
 import java.net.http.*;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.util.UUID;
 import static org.junit.jupiter.api.Assertions.*;
 
 /** Real HTTP -> scoped Service -> isolated MySQL; no development database or seed. */
@@ -97,5 +99,51 @@ class CollaborationHttpIntegrationTest extends ServiceFixture {
                 + submitted.get("lockVersion").asInt() + "}");
         assertEquals("ACCEPTED", accepted.get("status").asText());
         assertEquals(4, expect(200, "GET", taskPath, null).get("events").size());
+    }
+
+    @Test void creditAndHandoffRoutesKeepProjectScopeAndSerializeBigintAsText() throws Exception {
+        User admin = account("http_credit_admin", SystemRole.ADMIN);
+        User manager = account("http_credit_manager", SystemRole.USER);
+        User sender = account("http_credit_sender", SystemRole.USER);
+        User recipient = account("http_credit_recipient", SystemRole.USER);
+        User outsider = account("http_credit_outsider", SystemRole.USER);
+        Project project = createProject(admin, "HTTPCREDIT", manager, ProjectRole.TESTER);
+        addMember(project, sender, ProjectRole.TESTER, MembershipStatus.ACTIVE);
+        addMember(project, recipient, ProjectRole.TESTER, MembershipStatus.ACTIVE);
+        collaboration.appointManager(admin.id(), project.id(), manager.id());
+        ProjectTeam team = collaboration.createTeam(manager.id(), project.id(), "HTTP credit team", manager.id());
+        collaboration.setTeamMember(manager.id(), project.id(), team.id(), sender.id(), MembershipStatus.ACTIVE);
+        collaboration.setTeamMember(manager.id(), project.id(), team.id(), recipient.id(), MembershipStatus.ACTIVE);
+        tx.inTransaction(c -> { var credit = new JdbcCreditDao(c);
+            for (User user : java.util.List.of(admin, manager, sender, recipient, outsider)) credit.createAccount(user.id());
+            return null; });
+        new CreditService(serviceTx, new AdminAccessPolicy()).grant(
+                new AdminContext(admin.id(), "127.0.0.1", UUID.randomUUID().toString()), sender.id(), 100, "fixture");
+        String root = "/projects/" + project.id();
+        login(sender);
+        assertEquals("100", expect(200, "GET", "/credits/me", null).get("balance").asText());
+        String key = UUID.randomUUID().toString();
+        String payload = "{\"recipientUserId\":" + recipient.id() + ",\"amount\":\"7\",\"operationId\":\"" + key + "\"}";
+        JsonNode transfer = expect(201, "POST", root + "/credit-transfers", payload);
+        assertEquals("7", transfer.get("amount").asText());
+        expect(201, "POST", root + "/credit-transfers", payload);
+        assertEquals("93", expect(200, "GET", "/credits/me", null).get("balance").asText());
+        expect(403, "POST", root + "/credit-transfers", "{\"recipientUserId\":" + outsider.id()
+                + ",\"amount\":\"1\",\"operationId\":\"" + UUID.randomUUID() + "\"}");
+        login(manager);
+        JsonNode task = expect(201, "POST", root + "/tasks", "{\"teamId\":" + team.id()
+                + ",\"title\":\"HTTP handoff\",\"assigneeUserId\":" + sender.id() + ",\"rewardCredit\":\"20\"}");
+        assertEquals("20", task.get("rewardCredit").asText());
+        login(sender);
+        JsonNode offer = expect(201, "POST", root + "/handoffs", "{\"taskId\":" + task.get("id").asLong()
+                + ",\"recipientUserId\":" + recipient.id() + ",\"amount\":\"5\",\"operationId\":\"" + UUID.randomUUID() + "\"}");
+        expect(403, "POST", root + "/handoffs/" + offer.get("id").asLong() + "/accept", "{}");
+        login(recipient);
+        expect(200, "POST", root + "/handoffs/" + offer.get("id").asLong() + "/accept", "{}");
+        assertEquals("12", expect(200, "GET", "/credits/me", null).get("balance").asText());
+        assertEquals(recipient.id().longValue(), expect(200, "GET", root + "/tasks/" + task.get("id").asLong(), null)
+                .get("task").get("assigneeUserId").asLong());
+        login(outsider);
+        expect(403, "GET", root + "/contributions?month=2030-01", null);
     }
 }

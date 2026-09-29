@@ -6,4 +6,5 @@ import java.time.LocalDateTime;
 
 public record CreditEntry(long id, long userId, @JsonSerialize(using=ToStringSerializer.class) long amount,
                           String type, long actorUserId,
-                          String reason, String batchId, LocalDateTime createdAt) { }
+                          String reason, String batchId, LocalDateTime createdAt,
+                          Long projectId, String transferId, Long taskId, Long counterpartyUserId) { }

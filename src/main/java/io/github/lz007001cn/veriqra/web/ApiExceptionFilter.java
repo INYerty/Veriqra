@@ -6,8 +6,14 @@ import io.github.lz007001cn.veriqra.admin.AdminConflictException;
 import jakarta.servlet.*;
 import jakarta.servlet.http.*;
 import java.io.IOException;
+import java.util.Set;
 
 public final class ApiExceptionFilter implements Filter {
+    private static final Set<String> WORKFLOW_CODES = Set.of("INSUFFICIENT_CREDIT", "CREDIT_BALANCE_OVERFLOW",
+            "TRANSFER_SELF_NOT_ALLOWED", "TRANSFER_REQUEST_CONFLICT", "HANDOFF_SELF_NOT_ALLOWED",
+            "HANDOFF_NOT_ALLOWED", "HANDOFF_ALREADY_RESOLVED", "HANDOFF_ASSIGNEE_CHANGED",
+            "HANDOFF_PENDING_EXISTS", "HANDOFF_REQUEST_CONFLICT", "CREDIT_ACCOUNT_MISSING",
+            "TASK_REWARD_LOCKED", "INVALID_OPERATION_ID", "INVALID_MONTH");
     @Override public void doFilter(ServletRequest input, ServletResponse output, FilterChain chain)
             throws IOException, ServletException {
         HttpServletRequest request = (HttpServletRequest) input;
@@ -28,10 +34,10 @@ public final class ApiExceptionFilter implements Filter {
                 response.setHeader("Retry-After", Long.toString(f.retryAfter()));
             }
             else if (failure instanceof AuthenticationException) { status = 401; code = "UNAUTHENTICATED"; message = "Authentication required or credentials invalid"; }
-            else if (failure instanceof ValidationException) { status = 400; code = "VALIDATION"; message = "Request validation failed"; }
+            else if (failure instanceof ValidationException) { status = 400; code = workflowCode(failure, "VALIDATION"); message = "Request validation failed"; }
             else if (failure instanceof NotFoundException) { status = 404; code = "NOT_FOUND"; message = "Resource not found"; }
             else if (failure instanceof ForbiddenException) { status = 403; code = "FORBIDDEN"; message = "Operation is not permitted"; }
-            else if (failure instanceof ConflictException) { status = 409; code = "CONFLICT"; message = "Request conflicts with current state"; }
+            else if (failure instanceof ConflictException) { status = 409; code = workflowCode(failure, "CONFLICT"); message = "Request conflicts with current state"; }
             if (status == 500) {
                 // Do not log exception messages/causes: a JDBC or JSON message may contain secrets.
                 StringBuilder trace = new StringBuilder("Unhandled API failure: ").append(failure.getClass().getName());
@@ -45,5 +51,8 @@ public final class ApiExceptionFilter implements Filter {
             if (failure instanceof VirtualMachineError fatal) throw fatal;
             if (failure instanceof ThreadDeath fatal) throw fatal;
         }
+    }
+    private static String workflowCode(Throwable failure, String fallback) {
+        return WORKFLOW_CODES.contains(failure.getMessage()) ? failure.getMessage() : fallback;
     }
 }

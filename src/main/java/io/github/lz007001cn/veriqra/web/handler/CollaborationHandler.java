@@ -14,9 +14,12 @@ public final class CollaborationHandler {
     public record TeamRequest(String name, Long leadUserId) { }
     public record LeadRequest(Long leadUserId, Integer expectedVersion) { }
     public record TeamMemberRequest(Long userId, MembershipStatus status) { }
-    public record TaskRequest(Long teamId, String title, String description, Long assigneeUserId) { }
+    public record TaskRequest(Long teamId, String title, String description, Long assigneeUserId, String rewardCredit) { }
     public record ReassignRequest(Long assigneeUserId, Integer expectedVersion) { }
     public record TransitionRequest(WorkTaskStatus status, String note, Integer expectedVersion) { }
+    public record RewardRequest(String rewardCredit, Integer expectedVersion) { }
+    public record TransferRequest(Long recipientUserId, String amount, String note, String operationId) { }
+    public record HandoffRequest(Long taskId, Long recipientUserId, String amount, String note, String operationId) { }
 
     public static void handle(HttpServletRequest req, HttpServletResponse res, CollaborationService service,
                               Long actor, Long project, String[] path) throws IOException {
@@ -51,9 +54,29 @@ public final class CollaborationHandler {
                     if (method.equals("GET")) JsonHttp.write(res, 200, service.listTasks(actor, project));
                     else {
                         TaskRequest body = JsonHttp.read(req, TaskRequest.class);
-                        var task = service.createTask(actor, project, body.teamId(), body.title(), body.description(), body.assigneeUserId());
+                        var task = service.createTask(actor, project, body.teamId(), body.title(), body.description(), body.assigneeUserId(),
+                                body.rewardCredit() == null ? 0L : credit(body.rewardCredit()));
                         res.setHeader("Location", req.getContextPath() + "/api/projects/" + project + "/tasks/" + task.id());
                         JsonHttp.write(res, 201, task);
+                    }
+                }
+                case "credit-transfers" -> {
+                    JsonHttp.method(res, method, "POST");
+                    TransferRequest body = JsonHttp.read(req, TransferRequest.class);
+                    JsonHttp.write(res, 201, service.transferCredit(actor, project, body.recipientUserId(),
+                            credit(body.amount()), body.note(), body.operationId()));
+                }
+                case "contributions" -> {
+                    JsonHttp.method(res, method, "GET");
+                    JsonHttp.write(res, 200, service.monthlyContribution(actor, project, req.getParameter("month")));
+                }
+                case "handoffs" -> {
+                    JsonHttp.method(res, method, "GET", "POST");
+                    if (method.equals("GET")) JsonHttp.write(res, 200, service.listHandoffs(actor, project));
+                    else {
+                        HandoffRequest body = JsonHttp.read(req, HandoffRequest.class);
+                        JsonHttp.write(res, 201, service.offerHandoff(actor, project, body.taskId(), body.recipientUserId(),
+                                credit(body.amount()), body.note(), body.operationId()));
                     }
                 }
                 default -> throw new HttpFailure(404, "NOT_FOUND", "Resource not found");
@@ -102,7 +125,30 @@ public final class CollaborationHandler {
                 JsonHttp.write(res, 200, service.transitionTask(actor, project, task, body.status(), body.note(), body.expectedVersion()));
                 return;
             }
+            if (path[5].equals("reward")) {
+                RewardRequest body = JsonHttp.read(req, RewardRequest.class);
+                JsonHttp.write(res, 200, service.setTaskReward(actor, project, task,
+                        credit(body.rewardCredit()), body.expectedVersion()));
+                return;
+            }
+        }
+        if (path.length == 6 && path[3].equals("handoffs")) {
+            Long offer = JsonHttp.positiveId(path[4]);
+            JsonHttp.method(res, method, "POST");
+            switch (path[5]) {
+                case "accept" -> JsonHttp.write(res, 200, service.acceptHandoff(actor, project, offer));
+                case "decline" -> JsonHttp.write(res, 200, service.declineHandoff(actor, project, offer));
+                case "cancel" -> JsonHttp.write(res, 200, service.cancelHandoff(actor, project, offer));
+                default -> throw new HttpFailure(404, "NOT_FOUND", "Resource not found");
+            }
+            return;
         }
         throw new HttpFailure(404, "NOT_FOUND", "Resource not found");
+    }
+    private static long credit(String value) {
+        try {
+            if (value == null || !value.matches("(?:0|[1-9][0-9]*)")) throw new NumberFormatException();
+            return Long.parseLong(value);
+        } catch (NumberFormatException e) { throw new HttpFailure(400, "INVALID_CREDIT_AMOUNT", "Credit amount must be an integer within BIGINT range"); }
     }
 }
