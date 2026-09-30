@@ -108,3 +108,10 @@ html.i18n-pending [data-i18n], html.i18n-pending [data-i18n-placeholder] { visib
 .defect-retest { padding: .5rem 0; border-top: 1px solid var(--line); }
 #import-preview, #import-result { min-width: 0; overflow-wrap: anywhere; }
 @media (max-width: 767px) { #defect-list .asset-list-row { align-items: flex-start; flex-direction: column; } #defect-actions > button, #automation-identities select { max-width: 100%; } }
+
+/* Collaboration navigation uses native buttons and wraps on narrow screens. */
+.collab-sections { display: flex; flex-wrap: wrap; gap: .5rem; margin-bottom: 1rem; }
+.collab-sections button[aria-pressed="true"] { color: #fff; background: var(--accent); border-color: var(--accent); }
+.collab-setup-steps { padding-left: 1.4rem; margin-bottom: 0; }
+.collab-setup-steps li { padding: .35rem 0; }
+.collab-setup-steps button { text-align: left; white-space: normal; }

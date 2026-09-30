@@ -12,6 +12,8 @@
   let projects = [];
   let activeProject = null;
   let selectedId = null;
+  let creatingProject = false;
+  let createdProjectId = null;
   let currentView = 'dashboard';
 
   function announce(name, detail) { document.dispatchEvent(new CustomEvent('veriqra:' + name, { detail: detail })); }
@@ -68,9 +70,10 @@
   }
   function chooseProject(id) {
     if (!projects.some(function (p) { return String(p.id) === String(id); })) return;
-    if (selecting) return;
+    if (selecting || creatingProject) return;
     selecting = true;
     selectedId = null;
+    $('#project-created').addClass('d-none');
     announce('project', { project: null });
     $('#project-dashboard, #asset-workspace, #execution-workspace, #defect-workspace, #automation-workspace, #collaboration-workspace').addClass('d-none');
     picker.prop('disabled', true);
@@ -82,6 +85,7 @@
         rememberProject(selectedId);
         showProject(project);
         announce('project', { project: project });
+        if (String(project.id) === String(createdProjectId)) $('#project-created').removeClass('d-none');
       })
       .fail(function (failure) {
         picker.val('');
@@ -94,7 +98,7 @@
       })
       .always(function () { selecting = false; picker.prop('disabled', false); });
   }
-  function loadProjects() {
+  function loadProjects(preferredId) {
     picker.prop('disabled', true);
     api.get('projects')
       .done(function (rows) {
@@ -112,7 +116,7 @@
         rows.forEach(function (project) {
           picker.append($('<option>').val(String(project.id)).text(project.projectKey + ' · ' + project.name));
         });
-        const stored = savedProject();
+        const stored = preferredId == null ? savedProject() : String(preferredId);
         const next = rows.some(function (p) { return String(p.id) === stored; }) ? stored : String(rows[0].id);
         chooseProject(next);
       })
@@ -131,7 +135,9 @@
       .done(function (user) {
         currentUser = user;
         $('#current-user').text(user.username);
-        $('#admin-entry').toggleClass('d-none', user.systemRole !== 'ADMIN');
+        $('#admin-entry, #project-create-open').toggleClass('d-none', user.systemRole !== 'ADMIN');
+        $('#project-create-form').addClass('d-none');
+        $('#project-create-open').attr('aria-expanded', 'false');
         showShell();
         loadProjects();
       })
@@ -143,6 +149,55 @@
       })
       .always(function () { loading = false; });
   }
+
+  function projectCreationError(message) {
+    $('#project-create-error').text(message || '').toggleClass('d-none', !message);
+  }
+  function closeProjectCreation() {
+    $('#project-create-form').addClass('d-none');
+    $('#project-create-open').attr('aria-expanded', 'false').trigger('focus');
+  }
+  $('#project-create-open').on('click', function () {
+    if (!currentUser || currentUser.systemRole !== 'ADMIN' || creatingProject) return;
+    $('#project-create-form').removeClass('d-none');
+    $(this).attr('aria-expanded', 'true');
+    projectCreationError('');
+    $('#project-create-key').trigger('focus');
+  });
+  $('#project-create-cancel').on('click', closeProjectCreation);
+  $('#project-create-form').on('submit', function (event) {
+    event.preventDefault();
+    if (!currentUser || currentUser.systemRole !== 'ADMIN' || creatingProject) return;
+    if (selecting) { projectCreationError(t('project.waitForSelection')); return; }
+    const key = $('#project-create-key').val().trim();
+    const name = $('#project-create-name').val().trim();
+    if (!/^[A-Z][A-Z0-9]{0,15}$/.test(key) || !name || name.length > 160) {
+      projectCreationError(t('project.invalid')); return;
+    }
+    creatingProject = true;
+    $('#project-create-form button, #project-create-open, #project-select').prop('disabled', true);
+    projectCreationError('');
+    const form = this;
+    api.post('projects', { projectKey: key, name: name, description: $('#project-create-description').val().trim() || null })
+      .done(function (project) {
+        creatingProject = false;
+        createdProjectId = project.id;
+        form.reset(); closeProjectCreation();
+        location.hash = '#dashboard'; setView('dashboard');
+        // Only expose setup after the returned project has been loaded and selected.
+        $('#project-created').addClass('d-none');
+        loadProjects(project.id);
+      })
+      .fail(function (failure) { projectCreationError(failure.status === 409 ? t('project.keyConflict') : failure.message); })
+      .always(function () {
+        creatingProject = false;
+        $('#project-create-form button, #project-create-open').prop('disabled', false);
+        if (!selecting) picker.prop('disabled', false);
+      });
+  });
+  $('#project-setup-link').on('click', function () {
+    announce('collaboration-area', { area: 'people' });
+  });
 
   picker.on('change', function () { chooseProject(this.value); });
   $('a[data-view]').on('click', function () {
@@ -184,6 +239,7 @@
   document.addEventListener('veriqra:localechange', function () {
     renderWorkflow(); setView(currentView, true);
     if (activeProject) showProject(activeProject);
+    projectCreationError('');
   });
   // pageshow also runs when navigating Back to a page restored from the back/forward cache.
   $(window).on('pageshow', function (event) {
