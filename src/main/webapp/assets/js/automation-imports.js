@@ -19,7 +19,7 @@
   const option = function (value, text) { return $('<option>').val(String(value)).text(text); };
   const badge = function (state) {
     const colors = { ACTIVE: 'success', INACTIVE: 'secondary', PASS: 'success', FAIL: 'danger', BLOCKED: 'warning', SKIPPED: 'info' };
-    return $('<span>').addClass('badge text-bg-' + (colors[state] || 'secondary')).text(state ? window.I18n.enumLabel(state) : t("automation.unmapped", null, 'Unmapped'));
+    return $('<span>').addClass('badge text-bg-' + (colors[state] || 'secondary')).attr('data-vq-state', state).text(state ? window.I18n.enumLabel(state) : t("automation.unmapped", null, 'Unmapped'));
   };
   function notice(message, error) {
     $('#automation-notice').text(message || '').toggleClass('d-none', !message)

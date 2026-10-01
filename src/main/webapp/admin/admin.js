@@ -17,6 +17,12 @@
     ? window.I18n.formatDateTime(value) : (value == null || value === '' ? '—' : String(value));
   const number = value => window.I18n.formatCredit(value);
   const display = value => window.I18n.enumLabel(value);
+  const statusTone = value => ['ACTIVE', 'SUCCESS', 'UP'].includes(String(value)) ? 'success'
+    : ['FAILURE', 'DOWN'].includes(String(value)) ? 'danger'
+      : String(value) === 'RATE_LIMITED' ? 'warning' : 'neutral';
+  const status = value => $('<span class="status-badge">').attr({ 'data-status': value, 'data-vq-tone': statusTone(value) }).text(display(value));
+  const httpStatus = value => $('<span class="status-badge">').attr({ 'data-status': value,
+    'data-vq-tone': Number(value) >= 500 ? 'danger' : Number(value) >= 400 ? 'warning' : Number(value) >= 200 && Number(value) < 300 ? 'success' : 'neutral' }).text(fmt(value));
   const operatingSystem = value => window.VeriqraAccessLogFormat.operatingSystem(value, t);
   const auditSummaryKeys = Object.freeze({
     'User created': 'admin.auditSummaryUserCreated',
@@ -49,22 +55,23 @@
     return result;
   }
   async function post(path, body) { return api.post('admin/' + path, body); }
-  function panel(title) { return $('<section class="asset-panel">').append($('<h2 class="fs-5">').text(title)); }
+  function panel(title) { return $('<section class="asset-panel">').append($('<h2>').text(title)); }
   function cards(values) {
     const grid = $('<div class="admin-grid mb-4">');
     values.forEach(([name, value]) => grid.append($('<div class="admin-card">')
       .append($('<small>').text(name), $('<strong>').text(number(value)))));
     return grid;
   }
-  function table(headers, rows, cells) {
+  function table(headers, rows, cells, columnTypes = []) {
     if (!rows.length) return $('<p class="empty-state">').text(t("admin.noMatchingRecords", null, 'No matching records.'));
     const table = $('<table class="admin-table">');
-    const head = $('<tr>'); headers.forEach(h => head.append($('<th scope="col">').text(h)));
+    const head = $('<tr>'); headers.forEach((h, index) => head.append($('<th scope="col">').attr('data-vq-type', columnTypes[index] || null).text(h)));
     table.append($('<thead>').append(head));
     const body = $('<tbody>');
     rows.forEach(row => {
       const tr = $('<tr>');
-      cells(row).forEach(value => tr.append(value && value.jquery ? $('<td>').append(value) : cell(value)));
+      cells(row).forEach((value, index) => tr.append((value && value.jquery ? $('<td>').append(value) : cell(value))
+        .attr('data-vq-type', columnTypes[index] || null)));
       body.append(tr);
     });
     return $('<div class="admin-table-wrap">').append(table.append(body));
@@ -109,7 +116,7 @@
     const root = $('<div class="modal fade" tabindex="-1" aria-hidden="true">');
     const box = $('<div class="modal-dialog modal-dialog-scrollable">');
     const inner = $('<div class="modal-content">');
-    const header = $('<div class="modal-header">').append($('<h2 class="modal-title fs-5">').text(title),
+    const header = $('<div class="modal-header">').append($('<h2 class="modal-title">').text(title),
       $('<button type="button" class="btn-close" data-bs-dismiss="modal">').attr('aria-label', t('common.close')));
     const form = $('<form novalidate>');
     const body = $('<div class="modal-body">');
@@ -170,9 +177,9 @@
       [t("admin.totalCreditBalance", null, 'Total Credit balance'), c.totalBalance], [t("admin.creditsIssuedToday", null, 'Credits issued today'), m.creditsIssuedToday],
       [t("admin.creditsReclaimedToday", null, 'Credits reclaimed today'), m.creditsReclaimedToday]]));
     content.append(panel(t("admin.recentLoginFailures", null, 'Recent login failures')).append(table([t("admin.time", null, 'Time'), t("common.username", null, 'Username'), t("admin.ip", null, 'IP'), t("admin.result", null, 'Result')], result.recentFailures,
-      row => [fmt(row.createdAt), row.usernameAttempted, row.ipAddress, display(row.result)])));
+      row => [fmt(row.createdAt), row.usernameAttempted, row.ipAddress, status(row.result)], ['timestamp', null, 'code', 'status'])));
     content.append(panel(t("admin.recentAdminActions", null, 'Recent admin actions')).append(table([t("admin.time", null, 'Time'), t("common.action", null, 'Action'), t("admin.actorID", null, 'Actor ID'), t("admin.summary", null, 'Summary')], result.recentActions,
-      row => [fmt(row.createdAt), window.I18n.enumLabel(row.action, 'audit'), row.actorUserId, auditSummary(row.summary)])));
+      row => [fmt(row.createdAt), window.I18n.enumLabel(row.action, 'audit'), row.actorUserId, auditSummary(row.summary)], ['timestamp', null, 'code'])));
     content.append(panel(t("common.system", null, 'System')).append($('<p class="mb-0">').text('Veriqra ' + result.system.version
       + t('admin.systemApplicationDatabase', { application: display(result.system.applicationStatus),
         database: display(result.system.databaseStatus) }, ' · Application {application} · Database {database}'))));
@@ -189,7 +196,7 @@
           { name: 'status', label: t("common.status", null, 'Status'), options: ['ACTIVE', 'DISABLED'] }
         ], t("admin.createUser", null, 'Create user'), values => post('users', values)), 'btn-primary'));
     content.empty().append(top, table([t("common.username", null, 'Username'), t("admin.displayName", null, 'Display name'), t("admin.role", null, 'Role'), t("common.status", null, 'Status'), t("admin.lastLogin", null, 'Last login'), t("admin.lastSeen", null, 'Last seen'), t("admin.ip", null, 'IP'), t("admin.device", null, 'Device'), t("admin.credits", null, 'Credits'), t("common.actions", null, 'Actions')], result.items, user => [
-      user.username, user.displayName, display(user.systemRole), display(user.status), fmt(user.lastLogin), fmt(user.lastSeen), user.lastIp,
+      user.username, user.displayName, display(user.systemRole), status(user.status), fmt(user.lastLogin), fmt(user.lastSeen), user.lastIp,
       display(user.lastDevice), number(user.creditBalance), $('<div class="actions">').append(
         action(t("common.edit", null, 'Edit'), () => modal(t('admin.editUser', { username: user.username }, 'Edit {username}'), [
           { name: 'displayName', label: t("admin.displayName", null, 'Display name'), value: user.displayName, required: true },
@@ -202,7 +209,7 @@
         action(t("admin.credits", null, 'Credits'), () => viewUserCredits(user)),
         action(t("admin.grant", null, 'Grant'), () => creditChange({ userId: user.id, username: user.username }, 'grant')),
         action(t("admin.reclaim", null, 'Reclaim'), () => creditChange({ userId: user.id, username: user.username }, 'reclaim'), 'btn-outline-danger'))
-    ]), paging(result, render));
+    ], [null, null, null, 'status', 'timestamp', 'timestamp', 'code', null, 'numeric', 'actions']), paging(result, render));
   }
   async function viewUserCredits(user) {
     try {
@@ -257,8 +264,8 @@
             .prop('checked', selected.has(account.userId)).on('change', function () {
               if (this.checked) selected.set(account.userId, account.username); else selected.delete(account.userId);
               $('#credit-selected-count').text(t('admin.selectedCount', { count: selected.size }, '{count} selected'));
-            }), account.username, account.displayName, display(account.status), number(account.balance), fmt(account.updatedAt), rowActions(account)
-        ])), paging(result, render), panel(t("admin.creditLedger", null, 'Credit ledger')).append($('<div id="credit-history">')));
+            }), account.username, account.displayName, status(account.status), number(account.balance), fmt(account.updatedAt), rowActions(account)
+        ], [null, null, null, 'status', 'numeric', 'timestamp', 'actions'])), paging(result, render), panel(t("admin.creditLedger", null, 'Credit ledger')).append($('<div id="credit-history">')));
     await renderCreditHistory();
   }
   function creditChange(account, kind) {
@@ -282,18 +289,18 @@
     const result = await load('credits/transactions' + query({ page: String(creditHistoryPage.page) }));
     target.empty().append(filter, table([t("admin.time", null, 'Time'), t("admin.userID", null, 'User ID'), t("admin.type", null, 'Type'), t("admin.amount", null, 'Amount'), t("admin.actorID", null, 'Actor ID'), t("admin.batchID", null, 'Batch ID'), t("admin.reason", null, 'Reason'), t('collab.project', null, 'Project ID'), t('collab.reference', null, 'Reference'), t('collab.counterparty', null, 'Counterparty')], result.items,
       row => [fmt(row.createdAt), row.userId, display(row.type), number(row.amount), row.actorUserId, row.batchId, row.reason,
-        row.projectId, row.transferId || row.taskId, row.counterpartyUserId]),
+        row.projectId, row.transferId || row.taskId, row.counterpartyUserId], ['timestamp', 'code', null, 'numeric', 'code', 'code', null, 'code', 'code', 'code']),
       paging(result, renderCreditHistory, creditHistoryPage));
   }
-  async function renderLog(path, fields, headers, values) {
+  async function renderLog(path, fields, headers, values, columnTypes) {
     const result = await load(path + query());
-    content.empty().append(filters(fields, render), table(headers, result.items, values), paging(result, render));
+    content.empty().append(filters(fields, render), table(headers, result.items, values, columnTypes), paging(result, render));
   }
   async function renderSessions() {
     const result = await load('sessions' + query());
     content.empty().append($('<div class="alert alert-info">').text(t("admin.loginActivityOnlyLastSeenIsUserLevelRequestActivityNotALiveSessionTimestampNoOnlineSessionRegistryOrForceLogoutIsAvailable", null, 'Login activity only. Last seen is user-level request activity, not a live-session timestamp. No online-session registry or force logout is available.')),
       table([t("admin.loginTime", null, 'Login time'), t("admin.userLastSeen", null, 'User last seen'), t("admin.userID", null, 'User ID'), t("common.username", null, 'Username'), t("admin.ip", null, 'IP'), t("admin.device", null, 'Device')], result.activity.items,
-        row => [fmt(row.loginTime), fmt(row.userLastSeen), row.userId, row.username, row.ipAddress, display(row.deviceType)]),
+        row => [fmt(row.loginTime), fmt(row.userLastSeen), row.userId, row.username, row.ipAddress, display(row.deviceType)], ['timestamp', 'timestamp', 'code', null, 'code']),
       paging(result.activity, render));
   }
   async function renderSecurity() {
@@ -301,14 +308,19 @@
     content.empty().append(cards([[t("admin.failedLoginsToday", null, 'Failed logins today'), m.failedLoginsToday], [t("admin.rateLimitedToday", null, 'Rate limited today'), m.rateLimitedToday],
       [t("admin.4xxToday", null, '4xx today'), m.clientErrorsToday], [t("admin.5xxToday", null, '5xx today'), m.serverErrorsToday], [t("admin.uniqueIPsToday", null, 'Unique IPs today'), m.uniqueIpsToday]]),
       panel(t("admin.recentFailures", null, 'Recent failures')).append(table([t("admin.time", null, 'Time'), t("common.username", null, 'Username'), t("admin.ip", null, 'IP'), t("admin.device", null, 'Device')], result.recentFailures,
-        row => [fmt(row.createdAt), row.usernameAttempted, row.ipAddress, display(row.deviceType)])),
+        row => [fmt(row.createdAt), row.usernameAttempted, row.ipAddress, display(row.deviceType)], ['timestamp', null, 'code'])),
       panel(t("admin.recentRateLimits", null, 'Recent rate limits')).append(table([t("admin.time", null, 'Time'), t("common.username", null, 'Username'), t("admin.ip", null, 'IP')], result.recentRateLimits,
-        row => [fmt(row.createdAt), row.usernameAttempted, row.ipAddress])));
+        row => [fmt(row.createdAt), row.usernameAttempted, row.ipAddress], ['timestamp', null, 'code'])));
   }
   async function renderSystem() {
     const result = await load('system'); const dl = $('<dl class="admin-detail">');
     Object.entries(result).forEach(([key, value]) => dl.append($('<div>').append(
-      $('<dt>').text(t('system.' + key, null, key)), $('<dd>').text(key.endsWith('Status') ? display(value)
+      $('<dt>').text(t('system.' + key, null, key)), $('<dd>').attr({
+        'data-vq-type': key === 'buildCommit' || key === 'veriqraVersion' || key === 'databaseVersion' || key === 'publicOrigin' ? 'code'
+          : key === 'databaseTableCount' || key === 'uptimeSeconds' ? 'numeric' : key === 'buildTime' || key === 'serverTime' ? 'timestamp' : null,
+        'data-status': key.endsWith('Status') ? value : null,
+        'data-vq-tone': key.endsWith('Status') ? statusTone(value) : null
+      }).addClass(key.endsWith('Status') ? 'status-badge' : '').text(key.endsWith('Status') ? display(value)
         : key === 'sessionSecureMode' ? t(value ? 'system.enabled' : 'system.disabled')
           : key === 'publicOrigin' && value === 'Not configured' ? t('system.notConfigured')
             : key === 'applicationTimeZone' ? t('system.displayTimeZone', null, value)
@@ -328,21 +340,21 @@
             ['result', t("admin.result", null, 'Result'), null, ['SUCCESS', 'FAILURE', 'RATE_LIMITED']], ['ip', t("admin.ip", null, 'IP')],
             ['deviceType', t("admin.device", null, 'Device'), null, ['Desktop', 'Mobile', 'Tablet', 'Other']]],
           [t("admin.time", null, 'Time'), t("common.username", null, 'Username'), t("admin.result", null, 'Result'), t("admin.ip", null, 'IP'), t("admin.browser", null, 'Browser'), 'OS', t("admin.device", null, 'Device')],
-          row => [fmt(row.createdAt), row.usernameAttempted, display(row.result), row.ipAddress, row.browser, row.operatingSystem, display(row.deviceType)]); break;
+          row => [fmt(row.createdAt), row.usernameAttempted, status(row.result), row.ipAddress, row.browser, row.operatingSystem, display(row.deviceType)], ['timestamp', null, 'status', 'code']); break;
         case 'access-logs': await renderLog('access-logs',
           [['from', t("admin.from", null, 'From'), 'datetime-local'], ['to', t("admin.to", null, 'To'), 'datetime-local'], ['username', t("common.username", null, 'Username')], ['ip', t("admin.ip", null, 'IP')],
             ['status', t("common.status", null, 'Status')], ['method', t("admin.method", null, 'Method')], ['deviceType', t("admin.deviceType", null, 'Device Type'), null, ['Desktop', 'Mobile', 'Tablet', 'Other']]],
           [t("admin.time", null, 'Time'), t('admin.user', null, 'User'), t("admin.ip", null, 'IP'), t("admin.operatingSystem", null, 'Operating System'), t("admin.method", null, 'Method'), t("admin.path", null, 'Path'), t("common.status", null, 'Status'), t("admin.requestID", null, 'Request ID'), t("admin.details", null, 'Details')],
           row => [fmt(row.createdAt), row.username || (row.userId ? '#' + row.userId : t("admin.guest", null, 'Guest')), row.ipAddress, operatingSystem(row.operatingSystem), row.httpMethod, row.requestPath,
-            row.statusCode, row.requestId, action(t("common.view", null, 'View'), () => modal(t("admin.accessDetails", null, 'Access details'), [
+            httpStatus(row.statusCode), row.requestId, action(t("common.view", null, 'View'), () => modal(t("admin.accessDetails", null, 'Access details'), [
               { name: 'browser', label: t("admin.browser", null, 'Browser'), value: row.browser, readonly: true }, { name: 'os', label: t("admin.operatingSystem", null, 'Operating System'), value: operatingSystem(row.operatingSystem), readonly: true },
               { name: 'device', label: t("admin.device", null, 'Device'), value: display(row.deviceType), readonly: true }, { name: 'agent', label: t("admin.fullUserAgent", null, 'Full User-Agent'), value: row.userAgent, readonly: true },
               { name: 'requestId', label: t("admin.requestID", null, 'Request ID'), value: row.requestId, readonly: true }
-            ], t("common.close", null, 'Close'), async () => null))]); break;
+            ], t("common.close", null, 'Close'), async () => null))], ['timestamp', null, 'code', null, 'code', 'code', 'status', 'code', 'actions']); break;
         case 'audit-log': await renderLog('audit-logs',
           [['from', t("admin.from", null, 'From'), 'datetime-local'], ['to', t("admin.to", null, 'To'), 'datetime-local'], ['actorId', t("admin.actorID", null, 'Actor ID')], ['action', t("common.action", null, 'Action')]],
           [t("admin.time", null, 'Time'), t("admin.actorID", null, 'Actor ID'), t("common.action", null, 'Action'), t("admin.target", null, 'Target'), t("admin.summary", null, 'Summary'), t("admin.requestID", null, 'Request ID')],
-          row => [fmt(row.createdAt), row.actorUserId, window.I18n.enumLabel(row.action, 'audit'), row.targetType + ' #' + fmt(row.targetId), auditSummary(row.summary), row.requestId]); break;
+          row => [fmt(row.createdAt), row.actorUserId, window.I18n.enumLabel(row.action, 'audit'), row.targetType + ' #' + fmt(row.targetId), auditSummary(row.summary), row.requestId], ['timestamp', 'code', null, 'code', null, 'code']); break;
         case 'sessions': await renderSessions(); break;
         case 'security': await renderSecurity(); break;
         case 'system': await renderSystem(); break;

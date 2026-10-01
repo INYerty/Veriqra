@@ -31,7 +31,7 @@
   }
   function badge(status) {
     const colors = { DRAFT: 'secondary', READY: 'success', ARCHIVED: 'secondary', IN_PROGRESS: 'primary', COMPLETED: 'success', CANCELLED: 'secondary', NOT_RUN: 'secondary', PASS: 'success', FAIL: 'danger', BLOCKED: 'warning', SKIPPED: 'info' };
-    return $('<span>').addClass('badge text-bg-' + (colors[status] || 'secondary')).text(label(status));
+    return $('<span>').addClass('badge text-bg-' + (colors[status] || 'secondary')).attr('data-vq-state', status).text(label(status));
   }
   function field(name, value) {
     return $('<div class="asset-field">').append($('<dt>').text(name), $('<dd>').text(value == null || value === '' ? '—' : String(value)));

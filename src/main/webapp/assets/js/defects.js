@@ -21,7 +21,7 @@
   };
   const badge = function (value) {
     const colors = { OPEN: 'danger', IN_PROGRESS: 'primary', RESOLVED: 'info', CLOSED: 'success', REOPENED: 'warning', FAIL: 'danger', PASS: 'success', BLOCKED: 'warning', SKIPPED: 'info' };
-    return $('<span>').addClass('badge text-bg-' + (colors[value] || 'secondary')).text(label(value));
+    return $('<span>').addClass('badge text-bg-' + (colors[value] || 'secondary')).attr('data-vq-state', value).text(label(value));
   };
   function notice(message, error) {
     $('#defect-notice').text(message || '').toggleClass('d-none', !message)

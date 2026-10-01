@@ -17,6 +17,7 @@
   <script defer src="assets/js/defects.js"></script>
   <script defer src="assets/js/automation-imports.js"></script>
   <script defer src="assets/js/collaboration.js"></script>
+  <script defer src="assets/js/shell.js"></script>
 </head>
 <body class="app-page">
   <div id="bootstrap-screen" class="bootstrap-screen" role="status" aria-live="polite">
@@ -25,8 +26,8 @@
   </div>
   <div id="app-shell" class="app-shell d-none">
     <header class="app-topbar">
-      <button id="sidebar-toggle" class="btn btn-outline-secondary d-lg-none" type="button" aria-label="Toggle navigation" data-i18n-aria-label="shell.toggleNavigation" aria-controls="sidebar" aria-expanded="false">☰</button>
-      <a class="topbar-brand" href="index.html" aria-label="Veriqra dashboard" data-i18n-aria-label="shell.veriqraDashboard"><span class="brand-square">V.</span><span>Veriqra</span></a>
+      <button id="sidebar-toggle" class="btn btn-outline-secondary vq-icon-button d-lg-none" type="button" aria-label="Toggle navigation" data-i18n-aria-label="shell.toggleNavigation" aria-controls="sidebar" aria-expanded="false">☰</button>
+      <a class="topbar-brand" href="index.html" aria-label="Veriqra dashboard" data-i18n-aria-label="shell.veriqraDashboard"><span class="brand-square">V</span><span>Veriqra</span></a>
       <span class="topbar-context d-none d-md-inline" data-i18n="shell.qualityWORKSPACE">QUALITY WORKSPACE</span>
       <div class="topbar-spacer"></div>
       <div class="locale-control"><label for="locale-switch" class="visually-hidden" data-i18n="common.language">Language</label><select id="locale-switch" data-locale-switch class="form-select form-select-sm" aria-label="Language" data-i18n-aria-label="common.language"><option value="en">English</option><option value="zh-CN">简体中文</option></select></div>
@@ -36,16 +37,16 @@
     <div class="app-body">
       <nav id="sidebar" class="sidebar" aria-label="Primary navigation" data-i18n-aria-label="shell.primaryNavigation">
         <div class="sidebar-heading" data-i18n="shell.workspace">WORKSPACE</div>
-        <a class="nav-item active" href="#dashboard" data-view="dashboard" aria-current="page">◫ <span data-i18n="common.dashboard">Dashboard</span></a>
+        <a class="nav-item active" href="#dashboard" data-view="dashboard" aria-current="page"><svg class="vq-nav-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2" y="2" width="12" height="12" rx="1"/><path d="M6 2v12M6 7h8"/></svg><span data-i18n="common.dashboard">Dashboard</span></a>
         <div class="sidebar-heading mt-4" data-i18n="shell.qualityFLOW">QUALITY FLOW</div>
-        <a class="nav-item" href="#requirements" data-view="requirements">▤ <span data-i18n="common.requirements">Requirements</span></a>
-        <a class="nav-item" href="#test-cases" data-view="test-cases">◇ <span data-i18n="common.testCases">Test cases</span></a>
-        <a class="nav-item" href="#test-plans" data-view="test-plans">≡ <span data-i18n="common.testPlans">Test plans</span></a>
-        <a class="nav-item" href="#runs" data-view="runs">▷ <span data-i18n="common.runs">Runs</span></a>
-        <a class="nav-item" href="#defects" data-view="defects">⌁ <span data-i18n="common.defects">Defects</span></a>
-        <a class="nav-item" href="#automation" data-view="automation">⚙ <span data-i18n="common.automationImports">Automation &amp; imports</span></a>
-        <a class="nav-item" href="#collaboration" data-view="collaboration">◧ <span data-i18n="collab.navigation">Teams &amp; tasks</span></a>
-        <a class="nav-item d-none" id="admin-entry" href="admin/index.html">◆ <span data-i18n="common.administration">Administration</span></a>
+        <a class="nav-item" href="#requirements" data-view="requirements"><svg class="vq-nav-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 2h8l2 2v10H3zM5 6h6M5 9h6M5 12h4"/></svg><span data-i18n="common.requirements">Requirements</span></a>
+        <a class="nav-item" href="#test-cases" data-view="test-cases"><svg class="vq-nav-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 2h10v12H3zM5 6l2 2 4-4M5 11h6"/></svg><span data-i18n="common.testCases">Test cases</span></a>
+        <a class="nav-item" href="#test-plans" data-view="test-plans"><svg class="vq-nav-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 2h10v12H3zM5 5h6M5 8h6M5 11h6"/></svg><span data-i18n="common.testPlans">Test plans</span></a>
+        <a class="nav-item" href="#runs" data-view="runs"><svg class="vq-nav-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 2l9 6-9 6z"/></svg><span data-i18n="common.runs">Runs</span></a>
+        <a class="nav-item" href="#defects" data-view="defects"><svg class="vq-nav-icon" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="4"/><path d="M8 1v3M8 12v3M1 8h3M12 8h3M3 3l2 2M11 11l2 2"/></svg><span data-i18n="common.defects">Defects</span></a>
+        <a class="nav-item" href="#automation" data-view="automation"><svg class="vq-nav-icon" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="3"/><path d="M8 1v3M8 12v3M1 8h3M12 8h3"/></svg><span data-i18n="common.automationImports">Automation &amp; imports</span></a>
+        <a class="nav-item" href="#collaboration" data-view="collaboration"><svg class="vq-nav-icon" viewBox="0 0 16 16" aria-hidden="true"><circle cx="6" cy="5" r="2"/><path d="M2 14v-2a4 4 0 018 0v2M11 3a2 2 0 010 4M13 14v-2a4 4 0 00-2-3"/></svg><span data-i18n="collab.navigation">Teams &amp; tasks</span></a>
+        <a class="nav-item d-none" id="admin-entry" href="admin/index.html"><svg class="vq-nav-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1l6 3v4c0 4-6 7-6 7S2 12 2 8V4z"/></svg><span data-i18n="common.administration">Administration</span></a>
         <div class="sidebar-footer" data-i18n="shell.softwareTestQualityManagement">Software Test &amp; Quality Management</div>
       </nav>
       <main id="main-content" class="content" tabindex="-1">

@@ -41,7 +41,7 @@
   }
   function badge(status) {
     const colors = { DRAFT: 'secondary', ACTIVE: 'success', READY: 'success', ARCHIVED: 'secondary', CONFIRMED: 'success', NEEDS_REVIEW: 'warning', REMOVED: 'secondary' };
-    return $('<span class="badge text-bg-' + (colors[status] || 'secondary') + '">').text(label(status));
+    return $('<span class="badge text-bg-' + (colors[status] || 'secondary') + '">').attr('data-vq-state', status).text(label(status));
   }
   function field(term, value) {
     return $('<div class="asset-field">').append($('<dt>').text(term), $('<dd>').text(value == null || value === '' ? '—' : String(value)));
