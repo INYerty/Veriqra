@@ -10,9 +10,13 @@
   let initPromise = null;
   let localeRequest = 0;
 
+  function resourceUrl(name) {
+    const url = new URL(name + '.json', resourceBase).href;
+    return global.VeriqraAssets ? global.VeriqraAssets.url(url) : url;
+  }
   async function load(name) {
     if (catalogs[name]) return catalogs[name];
-    const response = await global.fetch(new URL(name + '.json', resourceBase).href, { credentials: 'same-origin' });
+    const response = await global.fetch(resourceUrl(name), { credentials: 'same-origin' });
     if (!response.ok) throw new Error('Translation resource unavailable: ' + name);
     const value = await response.json();
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Invalid translation resource');
@@ -159,5 +163,5 @@
   }
   global.I18n = Object.freeze({ init, t, getLocale: function () { return locale; }, setLocale, apply,
     enumLabel, error, formatDate, formatDateTime, formatNumber, formatCredit, formatRetryDelay, toUtcFilter,
-    resourceUrl: function (name) { return new URL(name + '.json', resourceBase).href; } });
+    resourceUrl: resourceUrl });
 })(window);

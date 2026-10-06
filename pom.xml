@@ -103,6 +103,55 @@
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-antrun-plugin</artifactId>
+                <version>3.2.0</version>
+                <executions>
+                    <execution>
+                        <id>version-web-assets</id>
+                        <phase>generate-resources</phase>
+                        <goals><goal>run</goal></goals>
+                        <configuration>
+                            <target xmlns:unless="ant:unless">
+                                <!-- Hash only release-owned resources, using sorted relative paths. -->
+                                <checksum algorithm="SHA-256" totalproperty="asset.digest"
+                                          todir="${project.build.directory}/asset-checksums" forceoverwrite="true">
+                                    <fileset dir="${project.basedir}/src/main/webapp"
+                                             includes="assets/js/**/*.js,assets/css/**/*.css,admin/*.js,admin/*.css,i18n/*.json"/>
+                                </checksum>
+                                <condition property="asset.git.available">
+                                    <matches string="${git.commit.id.full}" pattern="^[0-9a-f]{40}$"/>
+                                </condition>
+                                <condition property="asset.commit" value="${git.commit.id.full}" else="dev">
+                                    <isset property="asset.git.available"/>
+                                </condition>
+                                <echo level="warning" unless:set="asset.git.available">Git release metadata unavailable; using a content-derived development asset token.</echo>
+                                <property name="asset.version" value="${asset.commit}-${asset.digest}"/>
+                                <mkdir dir="${project.build.outputDirectory}"/>
+                                <echo file="${project.build.outputDirectory}/asset-version.properties" encoding="UTF-8">token=${asset.version}
+digest=${asset.digest}
+</echo>
+                                <!-- Keep source HTML unchanged, and regenerate copies on every build. -->
+                                <delete dir="${project.build.directory}/versioned-webapp" quiet="true"/>
+                                <copy todir="${project.build.directory}/versioned-webapp">
+                                    <fileset dir="${project.basedir}/src/main/webapp" includes="**/*.html"/>
+                                </copy>
+                                <replaceregexp flags="g" encoding="UTF-8"
+                                               match="((?:src|href)=[&quot;'])((?:assets/(?:js|css)/|admin/)[^&quot;'?#]+\.(?:js|css))(\?[^&quot;'#]*)(#[^&quot;']*)?([&quot;'])"
+                                               replace="\1\2\3&amp;amp;v=${asset.version}\4\5">
+                                    <fileset dir="${project.build.directory}/versioned-webapp" includes="**/*.html"/>
+                                </replaceregexp>
+                                <replaceregexp flags="g" encoding="UTF-8"
+                                               match="((?:src|href)=[&quot;'])((?:assets/(?:js|css)/|admin/)[^&quot;'?#]+\.(?:js|css))(#[^&quot;']*)?([&quot;'])"
+                                               replace="\1\2?v=${asset.version}\3\4">
+                                    <fileset dir="${project.build.directory}/versioned-webapp" includes="**/*.html"/>
+                                </replaceregexp>
+                            </target>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
                 <version>3.5.4</version>
                 <configuration>
@@ -122,7 +171,13 @@
                     <failOnMissingWebXml>true</failOnMissingWebXml>
                     <!-- Directory placeholders are not application resources. -->
                     <packagingExcludes>**/.gitkeep,**/*.local.properties</packagingExcludes>
-                    <warSourceExcludes>**/*.local.properties</warSourceExcludes>
+                    <warSourceExcludes>**/*.local.properties,**/*.html</warSourceExcludes>
+                    <webResources>
+                        <resource>
+                            <directory>${project.build.directory}/versioned-webapp</directory>
+                            <includes><include>**/*.html</include></includes>
+                        </resource>
+                    </webResources>
                 </configuration>
             </plugin>
         </plugins>

@@ -14,10 +14,11 @@ function page(options = {}) {
   const saved = new Map(options.saved ? [['veriqra.locale', options.saved]] : []);
   const base = options.base || 'http://127.0.0.1:9000/veriqra/';
   const requested = [];
+  const warnings = [];
   const listeners = new Map();
   const classes = new Set();
   const doc = {
-    currentScript: { src: new URL('assets/js/i18n.js', base).href },
+    currentScript: { src: new URL('assets/js/locale-bootstrap.js' + (options.token ? '?v=' + options.token : ''), base).href },
     baseURI: new URL('admin/users.html', base).href,
     documentElement: { lang: 'en', classList: {
       add: name => classes.add(name), remove: name => classes.delete(name), contains: name => classes.has(name)
@@ -31,18 +32,86 @@ function page(options = {}) {
     localStorage: { getItem: key => saved.get(key) || null, setItem: (key, value) => saved.set(key, value) },
     fetch: async url => {
       requested.push(url);
-      if (options.fail && url.endsWith(options.fail + '.json')) return { ok: false };
-      return { ok: true, json: async () => catalog(url.endsWith('zh-CN.json') ? 'zh-CN' : 'en') };
+      const pathname = new URL(url).pathname;
+      if (options.fail && pathname.endsWith(options.fail + '.json')) return { ok: false };
+      return { ok: true, json: async () => catalog(pathname.endsWith('zh-CN.json') ? 'zh-CN' : 'en') };
     }
   };
   const context = { window, document: doc, URL, Date, Intl, Promise,
     CustomEvent: class { constructor(type, details) { this.type = type; this.detail = details.detail; } },
-    console: { warn: () => {} } };
+    console: { warn: value => warnings.push(value) } };
   vm.runInNewContext(bootstrapSource, context);
+  doc.currentScript.src = new URL('assets/js/i18n.js' + (options.token ? '?v=' + options.token : ''), base).href;
   if (!options.noI18n) vm.runInNewContext(source, context);
-  return { i18n: window.I18n, doc, saved, requested, classes,
+  return { i18n: window.I18n, assets: window.VeriqraAssets, doc, saved, requested, warnings, classes,
     fire: name => { if (listeners.has(name)) listeners.get(name)(); } };
 }
+
+const releaseToken = 'a'.repeat(40) + '-' + 'b'.repeat(64);
+
+test('versioned catalogs preserve ROOT and nested context paths and reuse each locale in one build', async () => {
+  for (const base of ['http://127.0.0.1:9000/', 'http://127.0.0.1:9000/veriqra/']) {
+    const context = page({ base, token: releaseToken, saved: 'zh-CN' });
+    await context.i18n.init();
+    assert.equal(context.assets.version, releaseToken);
+    assert.deepEqual(context.requested, ['en', 'zh-CN'].map(name =>
+      new URL('i18n/' + name + '.json?v=' + releaseToken, base).href));
+    assert.equal(context.i18n.resourceUrl('zh-CN'), context.requested[1]);
+    await context.i18n.setLocale('en');
+    await context.i18n.setLocale('zh-CN');
+    assert.equal(context.requested.length, 2, 'Navigation must not refetch a loaded catalog.');
+  }
+});
+
+test('asset helper preserves query values, fragment and context while replacing a stale version once', () => {
+  const context = page({ token: releaseToken });
+  const url = new URL(context.assets.url('../assets/js/app.js?mode=read%20only&v=old&v=older#details'));
+  assert.equal(url.pathname, '/veriqra/assets/js/app.js');
+  assert.equal(url.searchParams.get('mode'), 'read only');
+  assert.deepEqual(url.searchParams.getAll('v'), [releaseToken]);
+  assert.equal(url.hash, '#details');
+  assert.equal(context.assets.url(url.href), url.href, 'Applying the version twice must be idempotent.');
+});
+
+test('vendor, external, other-context and business API URLs are never versioned', () => {
+  const context = page({ token: releaseToken });
+  for (const url of ['../assets/vendor/jquery-3.7.1.min.js', 'https://cdn.example/bootstrap.js',
+    '//cdn.example/app.js', '/assets/js/app.js', '../api/admin/system', 'data:image/svg+xml,test']) {
+    assert.equal(context.assets.url(url), url);
+  }
+});
+
+test('missing-Git content-derived build token versions catalogs without a shared unknown key', async () => {
+  const token = 'dev-' + 'c'.repeat(64);
+  const context = page({ token });
+  await context.i18n.init();
+  assert.equal(context.assets.version, token);
+  assert.equal(new URL(context.requested[0]).searchParams.get('v'), token);
+  assert.equal(context.warnings.length, 0);
+});
+
+test('unpackaged source preview and invalid tokens remain usable and explicitly warn', async () => {
+  for (const token of [undefined, 'unknown', 'null', '@git.commit.id.full@', '<unsafe>']) {
+    const context = page({ token });
+    await context.i18n.init();
+    assert.equal(context.assets.version, null);
+    assert.equal(new URL(context.requested[0]).search, '');
+    assert.equal(context.warnings.length, 1);
+    assert.match(context.warnings[0], /Unversioned Veriqra source preview/);
+  }
+});
+
+test('versioned Chinese bootstrap keeps text hidden until translations settle, including failure', async () => {
+  for (const fail of [undefined, 'zh-CN']) {
+    const context = page({ token: releaseToken, saved: 'zh-CN', fail });
+    assert.equal(context.classes.has('i18n-pending'), true);
+    context.fire('DOMContentLoaded');
+    await context.i18n.init();
+    await new Promise(setImmediate);
+    assert.equal(context.classes.has('i18n-pending'), false);
+    assert.equal(context.i18n.getLocale(), fail ? 'en' : 'zh-CN');
+  }
+});
 
 test('head bootstrap resolves stored, browser, English and invalid preferences before content paints', () => {
   for (const [options, expected, pending] of [
