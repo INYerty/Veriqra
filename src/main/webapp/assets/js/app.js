@@ -15,6 +15,76 @@
   let creatingProject = false;
   let createdProjectId = null;
   let currentView = 'dashboard';
+  let projectRequest = 0;
+  let desiredProject = null;
+  let handledRoute = null;
+  const routeIds = ['projectId', 'requirementId', 'testCaseId', 'planId', 'runId', 'runCaseId', 'attemptId', 'defectId',
+    'sourceRequirementId', 'sourceTestCaseId', 'sourcePlanId', 'failureAttemptId'];
+  const routeFields = {
+    requirements: ['requirementId', 'sourceTestCaseId', 'sourcePlanId', 'runId', 'runCaseId', 'attemptId'],
+    'test-cases': ['testCaseId', 'sourceRequirementId', 'sourcePlanId', 'runId', 'runCaseId', 'attemptId'],
+    'test-plans': ['planId', 'sourceTestCaseId'],
+    runs: ['runId', 'runCaseId', 'attemptId', 'sourcePlanId'],
+    defects: ['defectId', 'runId', 'runCaseId', 'failureAttemptId']
+  };
+  function routeUrl() {
+    // The fallback keeps source-only previews and simple test harnesses usable.
+    return typeof URL === 'function' && location.href ? new URL(location.href) : null;
+  }
+  function positiveId(value) { return /^[1-9][0-9]{0,18}$/.test(String(value || '')) ? String(value) : null; }
+  function routeContext(view, input) {
+    const context = { view: view };
+    const allowed = ['projectId'].concat(routeFields[view] || []);
+    allowed.forEach(function (key) { const id = positiveId(input[key]); if (id) context[key] = id; });
+    if (['create', 'link'].includes(input.action) && routeFields[view]) context.action = input.action;
+    return context;
+  }
+  function readRoute() {
+    const url = routeUrl();
+    const view = location.hash.slice(1) || 'dashboard';
+    return routeContext(view, url ? Object.fromEntries(url.searchParams) : {});
+  }
+  function makeRoute(view, input) {
+    const url = routeUrl();
+    if (!url) return '#' + view;
+    url.pathname = new URL('index.html', document.baseURI).pathname;
+    routeIds.concat(['action']).forEach(function (key) { url.searchParams.delete(key); });
+    const requested = Object.assign({ projectId: selectedId || desiredProject }, input);
+    if (requested.projectId == null) requested.projectId = selectedId || desiredProject;
+    const context = routeContext(view, requested);
+    Object.keys(context).filter(function (key) { return key !== 'view'; }).forEach(function (key) { url.searchParams.set(key, context[key]); });
+    url.hash = view;
+    return url;
+  }
+  function writeRoute(view, context, replace) {
+    const url = makeRoute(view, context || {});
+    if (routeUrl() && window.history) window.history[replace ? 'replaceState' : 'pushState'](null, '', String(url));
+    else location.hash = '#' + view;
+  }
+  function applyRoute() {
+    const context = readRoute();
+    handledRoute = location.href || null;
+    setView(context.view, true);
+    if (!projects.length) return;
+    const id = context.projectId || selectedId || savedProject();
+    if (!projects.some(function (project) { return String(project.id) === String(id); })) {
+      projectRequest++; desiredProject = null; selectedId = null; activeProject = null; selecting = false;
+      announce('project', { project: null }); picker.val('');
+      picker.prop('disabled', false);
+      setView(context.view, true); feedback(t('qa.projectUnavailable'));
+      return;
+    }
+    if (String(id) !== selectedId || selecting) chooseProject(id);
+    else setView(context.view);
+  }
+  window.VeriqraQaNavigation = Object.freeze({
+    read: readRoute,
+    href: function (view, context) { return String(makeRoute(view, context || {})); },
+    select: function (view, context) { writeRoute(view, context, true); },
+    open: function (view, context) {
+      writeRoute(view, context, false); applyRoute();
+    }
+  });
 
   function announce(name, detail) { document.dispatchEvent(new CustomEvent('veriqra:' + name, { detail: detail })); }
   function setView(view, silent) {
@@ -34,7 +104,7 @@
     $('#collaboration-workspace').toggleClass('d-none', currentView !== 'collaboration' || !selectedId);
     $('#sidebar').removeClass('open');
     $('#sidebar-toggle').attr('aria-expanded', 'false');
-    if (!silent) announce('view', { view: currentView, projectId: selectedId });
+    if (!silent) announce('view', { view: currentView, projectId: selectedId, context: readRoute() });
   }
 
   function savedProject() { try { return sessionStorage.getItem(projectStorageKey); } catch (_) { return null; } }
@@ -42,6 +112,7 @@
   function feedback(message) { alert.text(message || '').toggleClass('d-none', !message); }
   function showShell() { splash.addClass('d-none'); shell.removeClass('d-none'); }
   function clearProjectContext() {
+    projectRequest++; selecting = false; desiredProject = null;
     announce('project', { project: null });
     projects = [];
     activeProject = null;
@@ -70,24 +141,33 @@
   }
   function chooseProject(id) {
     if (!projects.some(function (p) { return String(p.id) === String(id); })) return;
-    if (selecting || creatingProject) return;
+    if (creatingProject) return;
+    const request = ++projectRequest;
+    desiredProject = String(id);
+    renderProjectLinks();
     selecting = true;
     selectedId = null;
     $('#project-created').addClass('d-none');
     announce('project', { project: null });
     $('#project-dashboard, #asset-workspace, #execution-workspace, #defect-workspace, #automation-workspace, #collaboration-workspace').addClass('d-none');
+    // Set the module view while no project is selected; verified project delivery then loads it once.
+    setView(currentView);
     picker.prop('disabled', true);
     feedback('');
     api.get('projects/' + encodeURIComponent(id))
       .done(function (project) {
+        if (request !== projectRequest || desiredProject !== String(project.id)) return;
         selectedId = String(project.id);
         picker.val(selectedId);
         rememberProject(selectedId);
+        writeRoute(currentView, Object.assign({}, readRoute(), { projectId: selectedId }), true);
         showProject(project);
+        renderWorkflow();
         announce('project', { project: project });
         if (String(project.id) === String(createdProjectId)) $('#project-created').removeClass('d-none');
       })
       .fail(function (failure) {
+        if (request !== projectRequest) return;
         picker.val('');
         feedback(failure.message);
         if ([403, 404].includes(failure.status)) {
@@ -96,7 +176,7 @@
           loadProjects();
         }
       })
-      .always(function () { selecting = false; picker.prop('disabled', false); });
+      .always(function () { if (request === projectRequest) { selecting = false; picker.prop('disabled', false); } });
   }
   function loadProjects(preferredId) {
     picker.prop('disabled', true);
@@ -116,7 +196,11 @@
         rows.forEach(function (project) {
           picker.append($('<option>').val(String(project.id)).text(project.projectKey + ' · ' + project.name));
         });
-        const stored = preferredId == null ? savedProject() : String(preferredId);
+        const linkedProject = readRoute().projectId;
+        if (preferredId == null && linkedProject && !rows.some(function (project) { return String(project.id) === linkedProject; })) {
+          feedback(t('qa.projectUnavailable')); picker.val(''); return;
+        }
+        const stored = preferredId == null ? (linkedProject || savedProject()) : String(preferredId);
         const next = rows.some(function (p) { return String(p.id) === stored; }) ? stored : String(rows[0].id);
         chooseProject(next);
       })
@@ -199,11 +283,18 @@
     announce('collaboration-area', { area: 'people' });
   });
 
-  picker.on('change', function () { chooseProject(this.value); });
-  $('a[data-view]').on('click', function () {
-    if (location.hash === this.hash) setView(this.hash.slice(1));
+  picker.on('change', function () { writeRoute(currentView, { projectId: this.value }, false); chooseProject(this.value); });
+  $('a[data-view]').on('click', function (event) {
+    if (event && (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey || event.button > 0)) return;
+    if (event) event.preventDefault();
+    window.VeriqraQaNavigation.open(this.hash.slice(1), { projectId: selectedId });
   });
-  $(window).on('hashchange', function () { setView(location.hash.slice(1)); });
+  $(window).on('hashchange', function () {
+    // Fragment history traversal fires popstate followed by hashchange for the same URL.
+    if (location.href && handledRoute === location.href) return;
+    writeRoute(location.hash.slice(1), readRoute(), true); applyRoute();
+  });
+  $(window).on('popstate', applyRoute);
   $('#logout-button').on('click', function () {
     const button = $(this);
     if (button.prop('disabled')) return;
@@ -226,14 +317,24 @@
     $(this).attr('aria-expanded', String(opened));
   });
   function renderWorkflow() {
+    renderProjectLinks();
     $('#workflow').empty();
+    const views = ['requirements', 'test-cases', 'test-plans', 'runs', 'defects', 'automation', 'collaboration'];
     [t('common.requirements'), t('common.testCases'), t('common.testPlans'), t('common.runs'),
       t('common.defects'), t('common.automationImports'), t('collab.navigation', null, 'Teams & tasks')].forEach(function (name, index) {
-      const card = $('<div class="workflow-card">');
+      const card = $('<a class="workflow-card">').attr('href', window.VeriqraQaNavigation.href(views[index], {})).on('click', function (event) {
+        if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey || event.button > 0) return;
+        event.preventDefault(); window.VeriqraQaNavigation.open(views[index], {});
+      });
       card.append($('<span class="workflow-number">').text(String(index + 1).padStart(2, '0')));
       card.append($('<strong>').text(name));
-      card.append($('<span class="workflow-later">').text(t("shell.availableInTheSidebar", null, 'Available in the sidebar')));
+      card.append($('<span class="workflow-later">').text(t('qa.openArea')));
       $('#workflow').append(card);
+    });
+  }
+  function renderProjectLinks() {
+    ['dashboard', 'requirements', 'test-cases', 'test-plans', 'runs', 'defects', 'automation', 'collaboration'].forEach(function (view) {
+      $('[data-view="' + view + '"]').attr('href', window.VeriqraQaNavigation.href(view, { projectId: selectedId || desiredProject }));
     });
   }
   document.addEventListener('veriqra:localechange', function () {

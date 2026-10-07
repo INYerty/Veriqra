@@ -7,14 +7,69 @@
   let generation = 0;
   let rows = [];
   let detail = null;
+  let detailId = null;
   let currentLinks = [];
   let editing = false;
+  let projectArchived = false;
+  let traceState = 'idle';
+  let writing = false;
+  let formContext = {};
+  let pendingLink = null;
   const root = $('#asset-workspace');
   const active = function () { return view === 'requirements' || view === 'test-cases'; };
   const kind = function () { return view === 'requirements' ? 'requirements' : 'test-cases'; };
   const base = function (type) { return 'projects/' + encodeURIComponent(projectId) + '/' + type; };
   const valid = function (token) { return token === generation && projectId && active(); };
   const label = function (value) { return window.I18n.enumLabel(value); };
+  const navigation = function () { return window.VeriqraQaNavigation; };
+  const sameId = function (left, right) { return String(left) === String(right); };
+  const writable = function () { return detail && !projectArchived && detail.row.status !== 'ARCHIVED'; };
+  function routeContext() {
+    const nav = navigation();
+    const context = nav ? nav.read() : {};
+    return !context.projectId || sameId(context.projectId, projectId) ? context : {};
+  }
+  function selectedContext(id) {
+    const context = { projectId: projectId };
+    context[view === 'requirements' ? 'requirementId' : 'testCaseId'] = String(id);
+    const current = routeContext();
+    ['sourceRequirementId', 'sourceTestCaseId', 'sourcePlanId', 'runId', 'runCaseId', 'attemptId'].forEach(function (name) {
+      if (current[name]) context[name] = String(current[name]);
+    });
+    return context;
+  }
+  function originContext() {
+    const context = { projectId: projectId };
+    const current = routeContext();
+    ['sourcePlanId', 'runId', 'runCaseId', 'attemptId'].forEach(function (name) {
+      if (current[name]) context[name] = String(current[name]);
+    });
+    return context;
+  }
+  function selectContext(context) { const nav = navigation(); if (nav) nav.select(view, context); }
+  function linkTo(nextView, context, text, primary) {
+    const nav = navigation();
+    const link = $('<a>').addClass('btn btn-' + (primary ? 'primary' : 'outline-secondary') + ' btn-sm')
+      .attr('href', nav ? nav.href(nextView, context) : '#' + nextView).text(text);
+    link.on('click', function (event) {
+      if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey || (event.button != null && event.button !== 0)) return;
+      if (nav) { event.preventDefault(); nav.open(nextView, context); }
+      else if (nextView === view && (context.requirementId || context.testCaseId)) {
+        event.preventDefault(); openDetail(context.requirementId || context.testCaseId);
+      }
+    });
+    return link;
+  }
+  function updateControls() {
+    $('#asset-edit').prop('disabled', !writable() || writing);
+    $('#trace-add-button').prop('disabled', !writable() || writing || traceState !== 'loaded');
+    $('#trace-submit').prop('disabled', !writable() || writing || traceState !== 'loaded' || !$('#trace-target').val());
+    $('#asset-traces button, #asset-primary-actions a').attr('aria-disabled', writing ? 'true' : 'false');
+    $('#asset-traces button, #asset-primary-actions button').prop('disabled', writing);
+    $('#asset-partial-link-retry').prop('disabled', writing || projectArchived);
+  }
+  function conflict(failure) { return failure.status === 409 ? t('assets.conflict', null,
+    'This item changed or cannot be edited in its current state. Reload its latest details before trying again.') : failure.message; }
 
   function notice(message, error) {
     $('#asset-notice').text(message || '').toggleClass('d-none', !message)
@@ -25,12 +80,17 @@
     generation++;
     rows = [];
     detail = null;
+    detailId = null;
     currentLinks = [];
     editing = false;
+    traceState = 'idle'; writing = false; formContext = {}; pendingLink = null;
     root.find('#asset-list, #asset-detail, #asset-steps, #asset-traces, #step-editor').empty();
     $('#asset-save, #trace-add-button, #trace-submit').prop('disabled', false);
     root.find('#asset-list-panel, #asset-detail-panel, #asset-form, #trace-form').addClass('d-none');
     $('#asset-list-status').text('');
+    $('#asset-primary-actions').empty();
+    $('#asset-readonly-note, #asset-trace-load, #asset-trace-retry, #asset-partial-link-panel').addClass('d-none');
+    $('#asset-trace-status, #asset-form-context, #asset-form-guidance').text('');
     notice(''); formError('');
   }
   function panels(which) {
@@ -54,7 +114,9 @@
   async function list() {
     if (!projectId || !active()) return;
     const token = ++generation;
-    detail = null;
+    detail = null; detailId = null; writing = false;
+    pendingLink = null;
+    selectContext({ projectId: projectId });
     panels('list'); notice('');
     $('#asset-list-title').text(view === 'requirements' ? t("common.requirements", null, 'Requirements') : t("common.testCases", null, 'Test cases'));
     $('#asset-new').text(view === 'requirements' ? t("assets.createRequirement", null, 'Create requirement') : t("assets.createTestCase", null, 'Create test case'));
@@ -73,8 +135,9 @@
           $('<p class="mb-1 text-secondary">').text(item.description || t("common.noDescription", null, 'No description')));
         const meta = $('<div class="asset-list-meta">').append(badge(item.status),
           $('<span>').text(label(item.priority)), $('<small>').text('v' + item.version));
-        const open = $('<button type="button" class="btn btn-outline-primary btn-sm">').text(t('assets.viewItem', { key: key(item) }, 'View {key}'))
-          .on('click', function () { openDetail(item.id); });
+        const context = { projectId: projectId };
+        context[view === 'requirements' ? 'requirementId' : 'testCaseId'] = String(item.id);
+        const open = linkTo(view, context, t('assets.viewItem', { key: key(item) }, 'View {key}'));
         card.append(summary, meta, open);
         $('#asset-list').append(card);
       });
@@ -84,23 +147,30 @@
   async function linksForCase(caseId, token) {
     // The approved API has only requirement-side traceability reads.
     const requirements = await api.get(base('requirements'));
+    if (!valid(token)) return [];
     const groups = await Promise.all(requirements.map(function (req) {
       return Promise.resolve(api.get(base('requirements') + '/' + req.id + '/test-cases'))
-        .then(function (links) { return links.filter(function (link) { return link.testCase.id === caseId; }).map(function (link) { return { requirement: req, link: link }; }); });
+        .then(function (links) { return links.filter(function (link) { return sameId(link.testCase.id, caseId); }).map(function (link) { return { requirement: req, link: link }; }); });
     }));
     if (!valid(token)) return [];
     return groups.flat();
   }
 
-  async function openDetail(id) {
+  async function openDetail(id, message) {
     const token = ++generation;
     detail = null;
+    detailId = String(id);
     currentLinks = [];
-    $('#trace-add-button, #trace-submit').prop('disabled', false);
+    traceState = 'idle'; writing = false;
+    selectContext(selectedContext(id));
     editing = false;
     panels('detail'); notice('');
     $('#asset-detail-title').text(t("common.loading", null, 'Loading…'));
     $('#asset-detail, #asset-steps, #asset-traces').empty();
+    $('#asset-primary-actions').empty();
+    $('#asset-readonly-note, #asset-trace-load, #asset-trace-retry, #asset-partial-link-panel').addClass('d-none');
+    $('#asset-trace-status').text(''); updateControls();
+    if (pendingLink && sameId(pendingLink.caseId, id)) showPendingLink();
     try {
       const current = await api.get(base(kind()) + '/' + encodeURIComponent(id));
       if (!valid(token)) return;
@@ -115,12 +185,59 @@
         $('#asset-detail dl').append(field(t("assets.preconditions", null, 'Preconditions'), row.preconditions));
         renderSteps(current.steps);
       }
+      $('#asset-readonly-note').text(t(projectArchived ? 'assets.projectReadOnly' : 'assets.readOnly'))
+        .toggleClass('d-none', !projectArchived && row.status !== 'ARCHIVED');
+      renderPrimaryActions(); updateControls();
       $('#trace-help').text(view === 'requirements' ? t("assets.linkedTestCasesIncludingRemovedHistory", null, 'Linked test cases, including removed history.') : t("assets.linkedRequirementsIncludingRemovedHistory", null, 'Linked requirements, including removed history.'));
-      const links = view === 'requirements'
-        ? await api.get(base('requirements') + '/' + row.id + '/test-cases')
-        : await linksForCase(row.id, token);
-      if (valid(token) && detail && detail.row.id === id) renderLinks(links);
-    } catch (failure) { if (valid(token)) notice(failure.message, true); }
+      $('#trace-help').append(document.createTextNode(' ' + t('assets.traceMeaning', null, 'Link status describes coverage review, not an execution result.')));
+      if (message) notice(message);
+      if (pendingLink && sameId(pendingLink.caseId, row.id)) showPendingLink();
+      if (view === 'requirements') await loadTraceability();
+      else {
+        $('#asset-trace-status').text(t('assets.traceNotLoaded', null, 'Load linked requirements before changing links.'));
+        $('#asset-trace-load').removeClass('d-none');
+      }
+      return valid(token) && detail && sameId(detail.row.id, id);
+    } catch (failure) { if (valid(token)) {
+      $('#asset-detail-title').text(t('common.unavailable', null, 'Unavailable')); notice(failure.message, true); updateControls();
+      $('#asset-primary-actions').append($('<button type="button" class="btn btn-outline-secondary btn-sm">')
+        .text(t('common.retry', null, 'Retry')).on('click', function () {
+          if (valid(token) && !writing && sameId(detailId, id)) return openDetail(id, message);
+        }));
+    } }
+  }
+  function renderPrimaryActions() {
+    const current = routeContext();
+    const target = $('#asset-primary-actions').empty();
+    if (current.sourceRequirementId && view === 'test-cases') target.append(linkTo('requirements',
+      Object.assign(originContext(), { requirementId: current.sourceRequirementId, sourceTestCaseId: String(detail.row.id) }), t('assets.backToRequirement')));
+    if (current.sourceTestCaseId && view === 'requirements') target.append(linkTo('test-cases',
+      Object.assign(originContext(), { testCaseId: current.sourceTestCaseId }), t('assets.backToTestCase')));
+    if (current.sourcePlanId) target.append(linkTo('test-plans', { projectId: projectId, planId: current.sourcePlanId }, t('assets.backToPlan')));
+    if (current.runId && current.runCaseId) target.append(linkTo('runs',
+      { projectId: projectId, runId: current.runId, runCaseId: current.runCaseId, attemptId: current.attemptId }, t('shell.backToRun')));
+    if (!writable()) return;
+    target.append(view === 'requirements' ? linkTo('test-cases',
+      { projectId: projectId, action: 'create', sourceRequirementId: String(detail.row.id) }, t('assets.createLinkedTestCase'), true)
+      : linkTo('test-plans', { projectId: projectId, action: 'create', sourceTestCaseId: String(detail.row.id) }, t('assets.createPlanWithCase'), true));
+  }
+  async function loadTraceability() {
+    if (!detail || traceState === 'loading' || writing) return;
+    const id = detail.row.id;
+    const token = generation;
+    traceState = 'loading'; currentLinks = [];
+    $('#asset-traces').empty(); $('#trace-form').addClass('d-none');
+    $('#asset-trace-load, #asset-trace-retry').addClass('d-none');
+    $('#asset-trace-status').text(t('assets.loadingTraceability', null, 'Loading traceability…')); updateControls();
+    try {
+      const links = view === 'requirements' ? await api.get(base('requirements') + '/' + id + '/test-cases') : await linksForCase(id, token);
+      if (!valid(token) || !detail || !sameId(detail.row.id, id)) return;
+      traceState = 'loaded'; $('#asset-trace-status').text(''); renderLinks(links); updateControls();
+    } catch (failure) { if (valid(token) && detail && sameId(detail.row.id, id)) {
+      traceState = 'error';
+      $('#asset-trace-status').text(t('assets.traceLoadFailed', null, 'Traceability could not be loaded. Retry before changing links.') + ' ' + failure.message);
+      $('#asset-trace-retry').removeClass('d-none'); updateControls();
+    } }
   }
   function renderSteps(steps) {
     const target = $('#asset-steps').empty();
@@ -142,25 +259,31 @@
       const requirementId = view === 'requirements' ? detail.row.id : row.id;
       const caseId = view === 'requirements' ? row.id : detail.row.id;
       const item = $('<div class="asset-link-row">').append(
-        $('<span>').text((view === 'requirements' ? 'TC-' : 'REQ-') + String(row.keyNo).padStart(3, '0') + ' · ' + row.title), badge(status));
-      if (status === 'NEEDS_REVIEW') item.append(actionButton(t("common.confirm", null, 'Confirm'), 'confirm', requirementId, caseId, row.title));
-      if (status !== 'REMOVED') item.append(actionButton(t("assets.markRemoved", null, 'Mark removed'), 'remove', requirementId, caseId, row.title));
-      if (status === 'REMOVED') item.append(actionButton(t("assets.reattach", null, 'Reattach'), '', requirementId, caseId, row.title));
+        $('<span>').text((view === 'requirements' ? 'TC-' : 'REQ-') + String(row.keyNo).padStart(3, '0') + ' · ' + row.title), badge(status), badge(row.status));
+      item.append(view === 'requirements' ? linkTo('test-cases', Object.assign(originContext(), { testCaseId: String(caseId), sourceRequirementId: String(requirementId) }), t('assets.openTestCase'))
+        : linkTo('requirements', Object.assign(originContext(), { requirementId: String(requirementId), sourceTestCaseId: String(caseId) }), t('assets.openRequirement')));
+      if (writable() && row.status !== 'ARCHIVED') {
+        if (status === 'NEEDS_REVIEW') item.append(actionButton(t("common.confirm", null, 'Confirm'), 'confirm', requirementId, caseId, row.title));
+        if (status !== 'REMOVED') item.append(actionButton(t("assets.markRemoved", null, 'Mark removed'), 'remove', requirementId, caseId, row.title));
+        if (status === 'REMOVED') item.append(actionButton(t("assets.reattach", null, 'Reattach'), '', requirementId, caseId, row.title));
+      }
       target.append(item);
     });
   }
   function actionButton(text, action, reqId, caseId, name) {
     return $('<button type="button" class="btn btn-outline-secondary btn-sm">').text(text).on('click', async function () {
+      if (!writable() || writing || traceState !== 'loaded') return;
       if (action === 'remove' && !window.confirm(t('assets.removeLinkConfirm', { name: name },
         'Mark the link to "{name}" as REMOVED? The history will remain.'))) return;
-      const button = $(this).prop('disabled', true);
       const token = generation;
+      const id = detail.row.id;
+      writing = true; updateControls();
       try {
         const path = base('requirements') + '/' + reqId + '/test-cases/' + caseId + (action ? '/' + action : '');
         await api.post(path, {});
-        if (valid(token)) await openDetail(detail.row.id);
-      } catch (failure) { if (valid(token)) notice(failure.message, true); }
-      finally { button.prop('disabled', false); }
+        if (valid(token)) { const opened = await openDetail(id); if (opened && view === 'test-cases') await loadTraceability(); }
+      } catch (failure) { if (valid(token)) notice(conflict(failure), true); }
+      finally { if (valid(token)) { writing = false; updateControls(); } }
     });
   }
 
@@ -190,15 +313,20 @@
   function renumberSteps() {
     $('#step-editor .step-number').each(function (index) { $(this).text(t('assets.stepNumber', { number: index + 1 }, 'Step {number}')); });
   }
-  function showForm(update) {
-    if (!projectId || !active()) return;
+  function showForm(update, context) {
+    if (!projectId || !active() || projectArchived || writing || (update && !writable())) return;
+    generation++;
     editing = update;
+    formContext = update ? {} : (context || {});
     $('#asset-save').prop('disabled', false);
     formError(''); notice('');
     const row = update ? detail.row : null;
     $('#asset-form')[0].reset();
     $('#asset-form-title').text(t(update ? (view === 'requirements' ? 'assets.editRequirement' : 'assets.editTestCase')
       : (view === 'requirements' ? 'assets.createRequirement' : 'assets.createTestCase')));
+    $('#asset-form-context').text(formContext.sourceRequirementId ? t('assets.requirementContext',
+      { id: formContext.sourceRequirementId }, 'After saving, this case will be linked to requirement #{id}. Saving and linking are separate operations.') : '');
+    $('#asset-form-guidance').text(t(view === 'test-cases' ? 'assets.definitionChangeHint' : 'assets.requirementChangeHint'));
     $('#asset-title').val(row ? row.title : '');
     $('#asset-description').val(row ? row.description || '' : '');
     $('#asset-priority').val(row ? row.priority : 'MEDIUM');
@@ -216,15 +344,64 @@
     $('#asset-title').trigger('focus');
   }
 
+  function showPendingLink() {
+    $('#asset-partial-link-status').text(t('assets.caseCreatedLinkPendingWithId',
+      { id: pendingLink.caseId, requirementId: pendingLink.requirementId },
+      'Test case #{id} was created, but its link to requirement #{requirementId} could not be saved. Retry linking this saved case.')
+      + (pendingLink.failureMessage ? ' ' + pendingLink.failureMessage : ''));
+    $('#asset-partial-link-panel').removeClass('d-none');
+    $('#asset-partial-link-retry').prop('disabled', writing || projectArchived);
+  }
+  async function attachCreatedCase(token, link) {
+    // Case creation and traceability are separate existing API writes. Never repeat creation on link failure.
+    try {
+      await api.post(base('requirements') + '/' + link.requirementId + '/test-cases/' + link.caseId, {});
+      if (!valid(token)) return;
+      pendingLink = null;
+      await openDetail(link.caseId, t('assets.caseLinked', null, 'Test case created and linked. Review the link to confirm coverage.'));
+    } catch (failure) {
+      if (!valid(token)) return;
+      if (failure.status === 409) {
+        // An earlier response may have been lost after attach succeeded. Verify that specific relationship only.
+        try {
+          const existing = await api.get(base('requirements') + '/' + link.requirementId + '/test-cases');
+          if (!valid(token)) return;
+          if (existing.some(function (entry) { return sameId(entry.testCase.id, link.caseId) && entry.status !== 'REMOVED'; })) {
+            pendingLink = null;
+            await openDetail(link.caseId, t('assets.caseLinked', null, 'Test case created and linked. Review the link to confirm coverage.'));
+            return;
+          }
+        } catch (_) { if (!valid(token)) return; }
+      }
+      pendingLink = Object.assign({}, link, { failureMessage: conflict(failure) });
+      await openDetail(link.caseId);
+    }
+  }
+  function applyRoute(context) {
+    const current = context || routeContext();
+    if (current.projectId && !sameId(current.projectId, projectId)) return;
+    const id = view === 'requirements' ? current.requirementId : current.testCaseId;
+    if (current.action === 'create' && projectArchived) {
+      list(); notice(t('assets.projectReadOnly', null, 'This project is archived and read-only.'), true);
+    } else if (current.action === 'create') showForm(false, current);
+    else if (id) openDetail(id);
+    else list();
+  }
+
   $(document).on('veriqra:project', function (event) {
     reset();
-    projectId = event.originalEvent.detail.project ? String(event.originalEvent.detail.project.id) : null;
-    if (projectId && active()) list();
+    const project = event.originalEvent.detail.project;
+    projectId = project ? String(project.id) : null;
+    projectArchived = !!project && project.status === 'ARCHIVED';
+    const current = routeContext();
+    if (current.view) view = current.view;
+    $('#asset-new').prop('disabled', projectArchived);
+    if (projectId && active()) applyRoute();
   });
   $(document).on('veriqra:view', function (event) {
     const next = event.originalEvent.detail.view;
-    if (next !== view) { reset(); view = next; }
-    if (projectId && active()) list();
+    reset(); view = next;
+    if (projectId && active()) applyRoute(event.originalEvent.detail.context);
   });
   document.addEventListener('veriqra:localechange', function () {
     if (!projectId || !active()) return;
@@ -232,6 +409,8 @@
       $('#asset-form-title').text(t(editing ? (view === 'requirements' ? 'assets.editRequirement' : 'assets.editTestCase')
         : (view === 'requirements' ? 'assets.createRequirement' : 'assets.createTestCase')));
       $('#asset-status option').each(function () { $(this).text(label(this.value)); });
+      $('#asset-form-context').text(formContext.sourceRequirementId ? t('assets.requirementContext', { id: formContext.sourceRequirementId }) : '');
+      $('#asset-form-guidance').text(t(view === 'test-cases' ? 'assets.definitionChangeHint' : 'assets.requirementChangeHint'));
       $('#step-editor .step-editor-row').each(function () {
         $(this).find('.step-action').prev('label').text(t('assets.actionMessage'));
         $(this).find('.step-expected').prev('label').text(t('assets.expectedResult'));
@@ -240,17 +419,36 @@
         $(this).find('.step-actions button').eq(2).text(t('assets.removeStep'));
       });
       renumberSteps();
-    } else if (detail && !$('#asset-detail-panel').hasClass('d-none')) openDetail(detail.row.id);
+    } else if (!$('#asset-detail-panel').hasClass('d-none')) {
+      const current = routeContext();
+      const id = current[view === 'requirements' ? 'requirementId' : 'testCaseId'] || (!navigation() && detailId);
+      if (!id) return list();
+      const loaded = detail && sameId(detail.row.id, id) && traceState === 'loaded';
+      const loading = openDetail(id);
+      const token = generation;
+      loading.then(function (opened) { if (opened && valid(token) && loaded && view === 'test-cases') loadTraceability(); });
+    }
     else list();
   });
   $('#asset-back').on('click', list);
-  $('#asset-new').on('click', function () { showForm(false); });
+  $('#asset-new').on('click', function () {
+    if (projectArchived) return;
+    selectContext({ projectId: projectId, action: 'create' }); showForm(false);
+  });
   $('#asset-edit').on('click', function () { if (detail) showForm(true); });
   $('#asset-form-cancel').on('click', function () { if (editing && detail) openDetail(detail.row.id); else list(); });
   $('#step-add').on('click', function () { stepRow({}); });
+  $('#asset-trace-load, #asset-trace-retry').on('click', loadTraceability);
+  $('#asset-partial-link-retry').on('click', async function () {
+    if (!pendingLink || writing || projectArchived || view !== 'test-cases' || !sameId(pendingLink.caseId, detailId)) return;
+    const token = generation;
+    writing = true; updateControls();
+    await attachCreatedCase(token, pendingLink);
+    if (valid(token)) { writing = false; updateControls(); }
+  });
   $('#asset-form').on('submit', async function (event) {
     event.preventDefault();
-    if (!this.reportValidity()) return;
+    if (writing || projectArchived || $('#asset-save').prop('disabled') || !this.reportValidity()) return;
     const token = generation;
     const button = $('#asset-save').prop('disabled', true);
     formError('');
@@ -270,24 +468,33 @@
     if (editing) {
       body.status = $('#asset-status').val();
       body.expectedVersion = detail.row.version;
+      if (view === 'test-cases' && body.status === 'READY' && !body.steps.length) {
+        formError(t('assets.readyNeedsStep', null, 'Add at least one complete step before marking the case Ready.'));
+        button.prop('disabled', false); return;
+      }
       if (body.status === 'ARCHIVED' && detail.row.status !== 'ARCHIVED' && !window.confirm(t('assets.archiveConfirm',
         { title: detail.row.title }, 'Archive "{title}"?'))) {
         button.prop('disabled', false); return;
       }
     }
+    const update = editing;
+    const previousStatus = update ? detail.row.status : null;
+    const linkRequirementId = !update && view === 'test-cases' ? formContext.sourceRequirementId : null;
+    writing = true;
     try {
-      const saved = editing
+      const saved = update
         ? await api.put(base(kind()) + '/' + detail.row.id, body)
         : await api.post(base(kind()), body);
-      if (valid(token)) await openDetail(saved.id);
+      if (!valid(token)) return;
+      if (linkRequirementId) await attachCreatedCase(token, { requirementId: String(linkRequirementId), caseId: String(saved.id) });
+      else await openDetail(saved.id, update && view === 'test-cases' && saved.status === 'DRAFT' && (body.status === 'READY' || previousStatus === 'READY')
+        ? t('assets.savedDraft', null, 'Saved as Draft because the definition changed. Review affected links before marking Ready.') : '');
     } catch (failure) {
-      if (valid(token)) formError(failure.status === 409
-        ? t("assets.thisItemWasChangedByAnotherOperationCancelAndReloadTheLatestVersionBeforeSaving", null, 'This item was changed by another operation. Cancel and reload the latest version before saving.')
-        : failure.message);
-    } finally { if (token === generation) button.prop('disabled', false); }
+      if (valid(token)) formError(conflict(failure));
+    } finally { if (token === generation) { writing = false; button.prop('disabled', false); updateControls(); } }
   });
   $('#trace-add-button').on('click', async function () {
-    if (!detail) return;
+    if (!writable() || writing || traceState !== 'loaded') return;
     const token = generation;
     const button = $(this).prop('disabled', true);
     const target = $('#trace-target').empty();
@@ -303,26 +510,29 @@
         target.append($('<option>').val(row.id).text((type === 'test-cases' ? 'TC-' : 'REQ-') +
           String(row.keyNo).padStart(3, '0') + ' · ' + row.title));
       });
-      if (!target.children().length) target.append($('<option>').val('').text(t("assets.noEligibleItems", null, 'No eligible items')));
+      if (!target.children().length) target.append($('<option>').val('').text(t(!options.length
+        ? (view === 'requirements' ? 'assets.noCasesForLink' : 'assets.noRequirementsForLink') : 'assets.noEligibleLinks')));
       $('#trace-target-label').text(view === 'requirements' ? t("assets.testCase", null, 'Test case') : t("assets.requirement", null, 'Requirement'));
       $('#trace-submit').prop('disabled', !eligible.length);
       $('#trace-form').removeClass('d-none');
       target.trigger('focus');
     } catch (failure) { if (valid(token)) notice(failure.message, true); }
-    finally { if (token === generation) button.prop('disabled', false); }
+    finally { if (token === generation) updateControls(); }
   });
   $('#trace-cancel').on('click', function () { $('#trace-form').addClass('d-none'); });
   $('#trace-form').on('submit', async function (event) {
     event.preventDefault();
-    if (!detail || !$('#trace-target').val()) return;
+    if (!writable() || writing || traceState !== 'loaded' || !$('#trace-target').val()) return;
     const token = generation;
     const button = $('#trace-submit').prop('disabled', true);
     const reqId = view === 'requirements' ? detail.row.id : $('#trace-target').val();
     const caseId = view === 'requirements' ? $('#trace-target').val() : detail.row.id;
+    const id = detail.row.id;
+    writing = true; updateControls();
     try {
       await api.post(base('requirements') + '/' + reqId + '/test-cases/' + caseId, {});
-      if (valid(token)) await openDetail(detail.row.id);
-    } catch (failure) { if (valid(token)) notice(failure.message, true); }
-    finally { if (token === generation) button.prop('disabled', false); }
+      if (valid(token)) { const opened = await openDetail(id); if (opened && view === 'test-cases') await loadTraceability(); }
+    } catch (failure) { if (valid(token)) notice(conflict(failure), true); }
+    finally { if (token === generation) { writing = false; button.prop('disabled', false); updateControls(); } }
   });
 })(jQuery, window.VeriqraApi);

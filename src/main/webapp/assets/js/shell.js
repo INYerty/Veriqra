@@ -45,6 +45,7 @@
     window.addEventListener('hashchange', dismiss);
     window.addEventListener('pagehide', dismiss);
     document.addEventListener('veriqra:localechange', dismiss);
+    document.addEventListener('veriqra:view', dismiss);
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
 })();
