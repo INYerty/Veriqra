@@ -49,7 +49,7 @@ function browser(initial = { view: 'requirements', projectId: '7', requirementId
     map(fn) { const values = this.items.map((node, index) => fn.call(node, index, node)); return { get: () => values }; }
     get() { return this.items; }
     eq(index) { return new Collection(this.items[index] ? [this.items[index]] : []); }
-    trigger(name) { if (name === 'focus') return this; this.items.forEach(node => fire(node, name)); return this; }
+    trigger(name) { if (name === 'focus') { if (this[0]) document.activeElement = this[0]; return this; } this.items.forEach(node => fire(node, name)); return this; }
     prev(selector) { const node = this.items[0], siblings = node?.parent?.childrenNodes || [], index = siblings.indexOf(node); return new Collection(index > 0 && matches(siblings[index - 1], selector) ? [siblings[index - 1]] : []); }
     next(selector) { const node = this.items[0], siblings = node?.parent?.childrenNodes || [], index = siblings.indexOf(node); return new Collection(siblings[index + 1] && matches(siblings[index + 1], selector) ? [siblings[index + 1]] : []); }
     insertBefore(target) { return move(this.items[0], target.items[0], 0); }
@@ -118,7 +118,7 @@ function browser(initial = { view: 'requirements', projectId: '7', requirementId
   const requirement = (id = 10, status = 'ACTIVE') => ({ id, keyNo: id, title: 'Requirement ' + id, status, priority: 'MEDIUM', version: 2 });
   return { $, nodes, requests, nav: integrated ? window.VeriqraQaNavigation : nav, navigation, dispatchProject, click, submit, caseRow, requirement, fire,
     pageshow: () => fire(windowNode, 'pageshow'), locale: () => document.dispatchEvent({ type: 'veriqra:localechange' }),
-    location, route: () => integrated ? window.VeriqraQaNavigation.read() : route };
+    location, route: () => integrated ? window.VeriqraQaNavigation.read() : route, focused: () => document.activeElement };
 }
 
 test('locale during pending requirement or case detail preserves the selected route and rejects the earlier response', async () => {
@@ -402,4 +402,36 @@ test('actual app requirement round trip preserves plan and frozen-run origin', a
   const links = ui.$('#asset-primary-actions').find('a').get();
   assert.equal(links.some(link => /#test-plans$/.test(link.attributes.href) && /planId=30/.test(link.attributes.href)), true);
   assert.equal(links.some(link => /#runs$/.test(link.attributes.href) && /runCaseId=50/.test(link.attributes.href) && /attemptId=60/.test(link.attributes.href)), true);
+});
+
+test('asset list failure is unavailable, Retry reads only, and stale Retry cannot reopen a create form', async () => {
+  const ui = browser({ view: 'requirements', projectId: '7' }); ui.dispatchProject();
+  ui.requests[0].reject({ status: 500, message: 'Requirements unavailable' }); await flush();
+  assert.equal(ui.$('#asset-list-status').text(), 'Unavailable');
+  assert.equal(ui.focused(), ui.$('#asset-list-title')[0]);
+  const retry = ui.$('#asset-list')[0].childrenNodes.find(node => node.tag === 'button');
+  const reading = ui.fire(retry, 'click'); ui.requests[1].resolve([]); await reading;
+  assert.match(ui.$('#asset-list-status').text(), /No items yet/);
+  assert.equal(ui.requests.every(call => call.method === 'get'), true);
+  await ui.click('#asset-new'); ui.$('#asset-title').val('Unsaved title');
+  const before = ui.requests.length; await ui.fire(retry, 'click');
+  assert.equal(ui.requests.length, before); assert.equal(ui.$('#asset-title').val(), 'Unsaved title');
+  assert.equal(ui.focused(), ui.$('#asset-title')[0]);
+  const cancel = ui.click('#asset-form-cancel'); assert.equal(ui.focused(), ui.$('#asset-list-title')[0]);
+  ui.requests.at(-1).resolve([]); await cancel;
+});
+
+test('trace picker failure ends loading and Retry reads only; cancel owns focus and ignores its late read', async () => {
+  const ui = browser(); ui.dispatchProject(); ui.requests[0].resolve(ui.requirement()); await flush(); ui.requests[1].resolve([]); await flush();
+  const loading = ui.click('#trace-add-button'); ui.requests[2].reject({ status: 500, message: 'Cases unavailable' }); await loading;
+  assert.equal(ui.$('#trace-target').prop('disabled'), true); assert.equal(ui.$('#trace-submit').prop('disabled'), true);
+  assert.equal(ui.$('#trace-target')[0].childrenNodes[0].content, 'Unavailable');
+  const retry = ui.$('#asset-notice')[0].childrenNodes.find(node => node.tag === 'button');
+  const recovering = ui.fire(retry, 'click'); ui.requests[3].resolve([ui.caseRow()]); await recovering;
+  assert.equal(ui.$('#trace-target').prop('disabled'), false); assert.equal(ui.focused(), ui.$('#trace-target')[0]);
+  await ui.click('#trace-cancel'); assert.equal(ui.focused(), ui.$('#trace-add-button')[0]);
+  const pending = ui.click('#trace-add-button'); const read = ui.requests.at(-1);
+  await ui.click('#trace-cancel'); read.resolve([ui.caseRow()]); await pending;
+  assert.equal(ui.$('#trace-form').hasClass('d-none'), true); assert.equal(ui.focused(), ui.$('#trace-add-button')[0]);
+  assert.equal(ui.requests.every(call => call.method === 'get'), true);
 });

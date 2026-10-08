@@ -57,6 +57,9 @@ function browser(context = { view: 'defects', projectId: '1' }) {
     removeClass(name) { return this.each(node => node.classes.delete(name)); }
     hasClass(name) { return this[0]?.classes.has(name) || false; }
     find(selector) { return new Collection(this.values.flatMap(node => node.all().filter(child => matches(child, selector)))); }
+    after(item) { return this.each(node => { item.values.forEach(child => { child.parent = node.parent; node.parent.children.splice(node.parent.children.indexOf(node) + 1, 0, child); }); }); }
+    remove() { return this.each(node => { if (node.parent) node.parent.children.splice(node.parent.children.indexOf(node), 1); if (node.attrs.id) nodes.delete(node.attrs.id); }); }
+    trigger(name) { if (name === 'focus' && this[0]) document.activeElement = this[0]; return this; }
   }
   const document = {
     handlers: new Map(),
@@ -83,6 +86,7 @@ function browser(context = { view: 'defects', projectId: '1' }) {
   }
   ['defect-list-panel', 'defect-detail-panel', 'defect-create-form'].forEach(id => add(id, id.endsWith('form') ? 'form' : 'div'));
   ['defect-notice', 'defect-list-status', 'defect-list', 'defect-new'].forEach(id => add(id));
+  add('defect-list-heading', 'h2', 'defect-list-panel');
   ['defect-detail-title', 'defect-detail', 'defect-evidence', 'defect-evidence-status', 'defect-actions', 'defect-back', 'defect-action-status'].forEach(id => add(id, id === 'defect-back' ? 'button' : 'div', 'defect-detail-panel'));
   add('defect-action-form', 'form', 'defect-detail-panel');
   ['defect-action-title', 'defect-action-help', 'defect-action-error', 'defect-resolution-wrap', 'defect-action-assignee-wrap', 'defect-action-evidence'].forEach(id => add(id, 'div', 'defect-action-form'));
@@ -117,7 +121,7 @@ function browser(context = { view: 'defects', projectId: '1' }) {
   const emit = (type, detail) => document.dispatchEvent({ type, detail });
   const fire = (node, type = 'click') => Promise.all((node.handlers.get(type) || []).map(fn => fn.call(node, { preventDefault() {} })));
   emit('veriqra:project', { project: { id: Number(context.projectId || 1) } });
-  return { $, nodes, calls, emit, fire, opened, emitted, route: () => route, nav };
+  return { $, nodes, calls, emit, fire, opened, emitted, route: () => route, nav, focused: () => document.activeElement };
 }
 
 const defect = (id = 9, status = 'OPEN') => ({ id, keyNo: id, projectId: 1, title: 'Broken login', status, severity: 'HIGH', priority: 'HIGH', version: 2 });
@@ -315,6 +319,63 @@ test('locale changes keep an unsubmitted resolution draft and selected FAIL evid
   assert.equal(ui.$('#defect-resolution').val(), 'Working draft');
   assert.equal(ui.$('#defect-action-form').hasClass('d-none'), false);
   assert.equal(ui.calls.length, 1);
+});
+
+test('Defect list and detail failure end loading and offer scoped GET Retry', async () => {
+  for (const detailed of [false, true]) {
+    const ui = browser({ view: 'defects', projectId: '1', ...(detailed ? { defectId: '9' } : {}) });
+    ui.calls[0].reject({ status: 500, message: 'Defects unavailable' }); await flush();
+    assert.equal(ui.$(detailed ? '#defect-detail-title' : '#defect-list-status').text(), 'Unavailable');
+    const retry = button(ui, detailed ? 'defect-actions' : 'defect-list', 'Retry');
+    const loading = ui.fire(retry); assert.equal(ui.calls.at(-1).method, 'GET');
+    assert.equal(ui.calls.at(-1).url, 'projects/1/defects' + (detailed ? '/9' : ''));
+    ui.calls.at(-1).resolve(detailed ? { defect: defect(), evidence: [] } : []); await loading;
+    assert.match(ui.$(detailed ? '#defect-detail-title' : '#defect-list-status').text(), detailed ? /Broken login/ : /No defects/);
+    assert.equal(ui.calls.every(call => call.method === 'GET'), true);
+    ui.nav.open('defects', { projectId: '1', action: 'create' }); const before = ui.calls.length;
+    await ui.fire(retry); assert.equal(ui.calls.length, before, 'Obsolete Retry cannot reopen another panel');
+  }
+});
+
+test('each evidence picker failure stays unavailable across locale and Retry preserves the unsaved draft', async () => {
+  for (const field of ['run', 'case', 'attempt']) {
+    const ui = browser({ view: 'defects', projectId: '1', action: 'create', runId: '4', runCaseId: '5', attemptId: '6' });
+    ui.$('#defect-create-title').val('Unsaved report'); ui.$('#defect-create-description').val('Typed details');
+    if (field !== 'run') { ui.calls.at(-1).resolve([{ id: 4, name: 'Regression' }]); await flush(); }
+    if (field === 'attempt') { ui.calls.at(-1).resolve(run); await flush(); }
+    ui.calls.at(-1).reject({ status: 500, message: field + ' unavailable' }); await flush();
+    const select = ui.$('#defect-create-' + field);
+    assert.equal(select[0].children[0].content, 'Unavailable'); assert.equal(select.prop('disabled'), true);
+    ui.emit('veriqra:localechange', {});
+    assert.equal(select[0].children[0].content, 'Unavailable'); assert.equal(ui.$('#defect-create-submit').prop('disabled'), true);
+    const loading = ui.fire(ui.nodes.get('defect-create-' + field + '-retry'));
+    assert.equal(ui.calls.at(-1).method, 'GET'); ui.calls.at(-1).resolve(field === 'case' ? { cases: [] } : []); await loading;
+    assert.notEqual(select[0].children[0].content, 'Unavailable');
+    assert.equal(ui.$('#defect-create-title').val(), 'Unsaved report'); assert.equal(ui.$('#defect-create-description').val(), 'Typed details');
+    assert.equal(ui.calls.every(call => call.method === 'GET'), true);
+  }
+});
+
+test('failed existing-defect picker remains disabled on locale and retries independently of evidence', async () => {
+  const ui = browser({ view: 'defects', projectId: '1', action: 'link' });
+  ui.calls.find(call => call.url.endsWith('/runs')).resolve([]);
+  ui.calls.find(call => call.url.endsWith('/defects')).reject({ status: 500, message: 'Defect choices unavailable' }); await flush();
+  ui.emit('veriqra:localechange', {});
+  assert.equal(ui.$('#defect-create-target').prop('disabled'), true);
+  assert.equal(ui.$('#defect-create-target')[0].children[0].content, 'Unavailable');
+  const loading = ui.fire(ui.nodes.get('defect-create-target-retry')); ui.calls.at(-1).resolve([]); await loading;
+  assert.match(ui.$('#defect-create-target')[0].children[0].content, /No open defects/);
+  assert.equal(ui.calls.filter(call => call.url.endsWith('/runs')).length, 1);
+  assert.equal(ui.calls.every(call => call.method === 'GET'), true);
+});
+
+test('opening and cancelling a Defect resolution panel moves focus to visible controls', async () => {
+  const ui = browser({ view: 'defects', projectId: '1', defectId: '9' });
+  ui.calls[0].resolve({ defect: defect(9, 'IN_PROGRESS'), evidence: [] }); await flush();
+  await ui.fire(button(ui, 'defect-actions', 'Resolve'));
+  assert.equal(ui.focused(), ui.$('#defect-resolution')[0]);
+  await ui.fire(ui.$('#defect-action-cancel')[0]);
+  assert.equal(ui.$('#defect-action-form').hasClass('d-none'), true); assert.equal(ui.focused(), ui.$('#defect-detail-title')[0]);
 });
 
 for (const state of ['pending', 'failed']) {

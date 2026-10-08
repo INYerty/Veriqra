@@ -852,5 +852,8 @@
   "execution.planMembershipDraftHint": "Adding or removing cases returns this plan to Draft. Mark it Ready again to create a run.",
   "assets.caseCreatedLinkPendingWithId": "Test case #{id} was created, but its link to requirement #{requirementId} could not be saved. Retry linking this saved case.",
   "execution.planCaseCount": "{count} included case(s) will be captured.",
-  "execution.runSnapshotNotice": "Creating this run freezes the included test cases and steps. Later plan or test case changes do not change this run."
+  "execution.runSnapshotNotice": "Creating this run freezes the included test cases and steps. Later plan or test case changes do not change this run.",
+  "admin.changeSavedRefreshFailed": "Change saved, but the page could not be refreshed. Retry loading to see the latest information.",
+  "automation.savedRefreshFailed": "Saved, but identities and mappings could not be refreshed. Retry loading; do not repeat the saved action.",
+  "shell.projectsUnavailable": "Projects could not be loaded"
 }

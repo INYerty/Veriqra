@@ -7,6 +7,7 @@
   const picker = $('#project-select');
   const alert = $('#page-alert');
   let loading = false;
+  let loadingProjects = false;
   let selecting = false;
   let currentUser = null;
   let projects = [];
@@ -109,7 +110,17 @@
 
   function savedProject() { try { return sessionStorage.getItem(projectStorageKey); } catch (_) { return null; } }
   function rememberProject(id) { try { if (id) sessionStorage.setItem(projectStorageKey, id); else sessionStorage.removeItem(projectStorageKey); } catch (_) { /* Optional UI preference. */ } }
-  function feedback(message) { alert.text(message || '').toggleClass('d-none', !message); }
+  function feedback(message, retry) {
+    alert.text(message || '').toggleClass('d-none', !message);
+    if (!message || !retry) return;
+    let retrying = false;
+    const button = $('<button type="button" class="btn btn-outline-danger btn-sm ms-2">')
+      .attr('data-i18n', 'common.retry').text(t('common.retry', null, 'Retry')).on('click', function () {
+        if (retrying) return;
+        retrying = true; button.prop('disabled', true); retry();
+      });
+    alert.append(button);
+  }
   function showShell() { splash.addClass('d-none'); shell.removeClass('d-none'); }
   function clearProjectContext() {
     projectRequest++; selecting = false; desiredProject = null;
@@ -117,7 +128,7 @@
     projects = [];
     activeProject = null;
     selectedId = null;
-    picker.empty().append($('<option>').val('').text(t("shell.loadingProjects", null, 'Loading projects…'))).prop('disabled', true);
+    picker.empty().append($('<option>').val('').attr('data-i18n', 'shell.loadingProjects').text(t("shell.loadingProjects", null, 'Loading projects…'))).prop('disabled', true);
     $('#project-dashboard, #empty-projects, #asset-workspace, #execution-workspace, #defect-workspace, #automation-workspace, #collaboration-workspace').addClass('d-none');
     $('#project-key, #project-title, #project-description, #project-status, #account-name').text('');
   }
@@ -147,6 +158,7 @@
     renderProjectLinks();
     selecting = true;
     selectedId = null;
+    activeProject = null;
     $('#project-created').addClass('d-none');
     announce('project', { project: null });
     $('#project-dashboard, #asset-workspace, #execution-workspace, #defect-workspace, #automation-workspace, #collaboration-workspace').addClass('d-none');
@@ -169,17 +181,21 @@
       .fail(function (failure) {
         if (request !== projectRequest) return;
         picker.val('');
-        feedback(failure.message);
+        feedback(failure.message, failure.status === 401 ? null : function () { chooseProject(id); });
         if ([403, 404].includes(failure.status)) {
           rememberProject(null);
           // A changed membership or deleted project must be revalidated against the list.
           loadProjects();
         }
       })
-      .always(function () { if (request === projectRequest) { selecting = false; picker.prop('disabled', false); } });
+      .always(function () { if (request === projectRequest) { selecting = false; picker.prop('disabled', loadingProjects); } });
   }
   function loadProjects(preferredId) {
+    let failed = false;
+    loadingProjects = true;
     picker.prop('disabled', true);
+    feedback('');
+    if (!projects.length) picker.empty().append($('<option>').val('').attr('data-i18n', 'shell.loadingProjects').text(t('shell.loadingProjects', null, 'Loading projects…')));
     api.get('projects')
       .done(function (rows) {
         projects = rows;
@@ -188,7 +204,7 @@
           selectedId = null;
           announce('project', { project: null });
           rememberProject(null);
-          picker.append($('<option>').val('').text(t("shell.noProjectsAvailable", null, 'No projects available')));
+          picker.append($('<option>').val('').attr('data-i18n', 'shell.noProjectsAvailable').text(t("shell.noProjectsAvailable", null, 'No projects available')));
           $('#project-dashboard, #asset-workspace, #execution-workspace, #defect-workspace, #automation-workspace, #collaboration-workspace').addClass('d-none');
           $('#empty-projects').removeClass('d-none');
           return;
@@ -204,8 +220,12 @@
         const next = rows.some(function (p) { return String(p.id) === stored; }) ? stored : String(rows[0].id);
         chooseProject(next);
       })
-      .fail(function (failure) { feedback(failure.message); })
-      .always(function () { if (!selecting) picker.prop('disabled', false); });
+      .fail(function (failure) {
+        failed = true;
+        if (!projects.length) picker.empty().append($('<option>').val('').attr('data-i18n', 'shell.projectsUnavailable').text(t('shell.projectsUnavailable', null, 'Projects could not be loaded')));
+        feedback(failure.message, failure.status === 401 ? null : function () { loadProjects(preferredId); });
+      })
+      .always(function () { loadingProjects = false; if (!selecting) picker.prop('disabled', failed && !projects.length); });
   }
   function bootstrap() {
     if (loading) return;

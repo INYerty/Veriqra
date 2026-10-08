@@ -16,6 +16,7 @@
   let evidenceLoading = false;
   const pickerData = { 'defect-create': {}, 'defect-action': {} };
   const pickerGeneration = { 'defect-create': 0, 'defect-action': 0 };
+  const pickerFailures = { 'defect-create': {}, 'defect-action': {} };
   const active = function () { return view === 'defects' && !!projectId; };
   const valid = function (token) { return active() && token === generation; };
   const base = function (resource) { return 'projects/' + encodeURIComponent(projectId) + '/' + resource; };
@@ -70,6 +71,7 @@
       .attr('role', error ? 'alert' : 'status').attr('aria-live', error ? 'assertive' : 'polite');
   }
   function formError(id, message) { $(id).text(message || '').toggleClass('d-none', !message); }
+  function focusHeading(selector) { $(selector).attr('tabindex', '-1').trigger('focus'); }
   function conflict(error, action) {
     if (error.status !== 409) return error.message;
     return action === 'close'
@@ -82,6 +84,7 @@
     pickerGeneration['defect-action']++;
     detail = null; actionMode = null; mutating = false; evidenceValues = null; evidenceLoading = false; linkableDefects = [];
     pickerData['defect-create'] = {}; pickerData['defect-action'] = {};
+    clearPickerFailures('defect-create'); clearPickerFailures('defect-action');
     $('#defect-list, #defect-detail, #defect-evidence, #defect-actions').empty();
     $('#defect-list-status, #defect-evidence-status').text('');
     $('#defect-list-panel, #defect-detail-panel, #defect-create-form, #defect-action-form').addClass('d-none');
@@ -99,6 +102,7 @@
     detail = null; actionMode = null; mutating = false;
     panels('list'); notice('');
     $('#defect-list').empty(); $('#defect-list-status').text(t("defects.loadingDefects", null, 'Loading defects…'));
+    focusHeading('#defect-list-panel h2');
     try {
       const rows = await api.get(base('defects'));
       if (!valid(token)) return;
@@ -113,7 +117,11 @@
             $('<span>').text('v' + row.version), $('<small>').text(t('defects.updatedAt', { date: date(row.updatedAt) }, 'Updated {date}'))),
           routeLink(t("defects.viewDefect", null, 'View defect'), 'defects', { defectId: String(row.id) })));
       });
-    } catch (error) { if (valid(token)) { $('#defect-list-status').text(''); notice(error.message, true); } }
+    } catch (error) { if (valid(token)) {
+      $('#defect-list-status').text(t('common.unavailable', null, 'Unavailable')); notice(error.message, true);
+      $('#defect-list').append($('<button type="button" class="btn btn-outline-secondary btn-sm">')
+        .text(t('common.retry', null, 'Retry')).on('click', function () { if (valid(token)) return list(); }));
+    } }
   }
   async function loadEvidence(current, token) {
     const evidenceToken = ++evidenceGeneration;
@@ -186,6 +194,7 @@
     $('#defect-detail-panel button').prop('disabled', false);
     $('#defect-action-form').addClass('d-none');
     $('#defect-detail-title').text(t("defects.loadingDefect", null, 'Loading defect…'));
+    focusHeading('#defect-detail-title');
     $('#defect-detail, #defect-evidence, #defect-actions').empty();
     $('#defect-evidence-status').text(t("defects.loadingLinkedEvidence", null, 'Loading linked evidence…'));
     try {
@@ -197,7 +206,12 @@
       renderActions(defect);
       if (feedback) actionStatus(feedback, false);
       await loadEvidence(current, token);
-    } catch (error) { if (valid(token)) { $('#defect-evidence-status').text(''); notice(error.message, true); } }
+    } catch (error) { if (valid(token)) {
+      $('#defect-detail-title').text(t('common.unavailable', null, 'Unavailable'));
+      $('#defect-evidence-status').text(''); notice(error.message, true);
+      $('#defect-actions').append($('<button type="button" class="btn btn-outline-secondary btn-sm">')
+        .text(t('common.retry', null, 'Retry')).on('click', function () { if (valid(token) && !mutating) return openDetail(id, feedback); }));
+    } }
   }
   function renderDefect(defect) {
     $('#defect-detail-title').text('BUG-' + String(defect.keyNo).padStart(3, '0') + ' · ' + defect.title);
@@ -247,6 +261,24 @@
   }
   function option(value, text) { return $('<option>').val(String(value)).text(text); }
   function pickerError(prefix, message) { formError(prefix === 'defect-create' ? '#defect-create-error' : '#defect-action-error', message); }
+  function clearPickerFailures(prefix, fields) {
+    (fields || ['run', 'case', 'attempt', 'target']).forEach(function (field) {
+      $('#' + prefix + '-' + field + '-retry').remove(); delete pickerFailures[prefix][field];
+    });
+  }
+  function pickerReadFailed(prefix, field, error, retry, current) {
+    if (!current()) return;
+    pickerFailures[prefix][field] = error;
+    const select = $('#' + prefix + '-' + field);
+    select.empty().append(option('', t('common.unavailable', null, 'Unavailable'))).prop('disabled', true);
+    pickerError(prefix, error.message);
+    select.after($('<button type="button" class="btn btn-outline-secondary btn-sm mt-2">')
+      .attr('id', prefix + '-' + field + '-retry').text(t('common.retry', null, 'Retry')).on('click', function () {
+        if (!current() || mutating) return;
+        pickerError(prefix, ''); return retry();
+      }));
+    updatePickerSubmit(prefix);
+  }
   function sourceUnavailable(prefix) { pickerError(prefix, t('defects.sourceUnavailable', null, 'The source Run, Run Case, or FAIL attempt is no longer available. Select existing evidence.')); }
   function updatePickerSubmit(prefix) {
     const ready = !!selectedFailure(prefix);
@@ -261,6 +293,7 @@
   }
   async function loadRuns(prefix, prefill) {
     const token = generation, pickerToken = ++pickerGeneration[prefix];
+    clearPickerFailures(prefix, ['run', 'case', 'attempt']);
     pickerData[prefix] = {};
     const run = $('#' + prefix + '-run').empty().append(option('', t('defects.loadingRuns', null, 'Loading runs…'))).prop('disabled', true);
     $('#' + prefix + '-case, #' + prefix + '-attempt').empty().prop('disabled', true);
@@ -275,10 +308,11 @@
       if (prefill && rows.some(function (item) { return sameId(item.id, prefill.runId); })) {
         run.val(String(prefill.runId)); await loadCases(prefix, prefill);
       } else if (prefill && prefill.runId) sourceUnavailable(prefix);
-    } catch (error) { if (pickerValid(prefix, token, pickerToken)) pickerError(prefix, error.message); }
+    } catch (error) { pickerReadFailed(prefix, 'run', error, function () { return loadRuns(prefix, prefill); }, function () { return pickerValid(prefix, token, pickerToken); }); }
   }
   async function loadCases(prefix, prefill) {
     const token = generation, pickerToken = ++pickerGeneration[prefix];
+    clearPickerFailures(prefix, ['case', 'attempt']);
     const runId = $('#' + prefix + '-run').val();
     pickerData[prefix].cases = []; pickerData[prefix].attempts = [];
     const select = $('#' + prefix + '-case').empty().append(option('', runId ? t('defects.loadingRunCases', null, 'Loading Run Cases…') : t("defects.selectARunFirst", null, 'Select a Run first'))).prop('disabled', true);
@@ -295,10 +329,11 @@
       if (prefill && result.cases.some(function (item) { return sameId(item.runCaseId, prefill.runCaseId); })) {
         select.val(String(prefill.runCaseId)); await loadAttempts(prefix, prefill);
       } else if (prefill && prefill.runCaseId) sourceUnavailable(prefix);
-    } catch (error) { if (pickerValid(prefix, token, pickerToken)) pickerError(prefix, error.message); }
+    } catch (error) { pickerReadFailed(prefix, 'case', error, function () { return loadCases(prefix, prefill); }, function () { return pickerValid(prefix, token, pickerToken); }); }
   }
   async function loadAttempts(prefix, prefill) {
     const token = generation, pickerToken = ++pickerGeneration[prefix];
+    clearPickerFailures(prefix, ['attempt']);
     const runId = $('#' + prefix + '-run').val(), caseId = $('#' + prefix + '-case').val();
     pickerData[prefix].attempts = [];
     const select = $('#' + prefix + '-attempt').empty().append(option('', caseId ? t('defects.loadingFailAttempts', null, 'Loading FAIL attempts…') : t("defects.selectARunCaseFirst", null, 'Select a Run Case first'))).prop('disabled', true);
@@ -320,7 +355,7 @@
       else if (prefill && (prefill.attemptId || prefill.failureAttemptId)) sourceUnavailable(prefix);
       updatePickerSubmit(prefix);
       if (prefix === 'defect-create') renderCreateContext();
-    } catch (error) { if (pickerValid(prefix, token, pickerToken)) pickerError(prefix, error.message); }
+    } catch (error) { pickerReadFailed(prefix, 'attempt', error, function () { return loadAttempts(prefix, prefill); }, function () { return pickerValid(prefix, token, pickerToken); }); }
   }
   function selectedFailure(prefix) {
     const id = Number($('#' + prefix + '-attempt').val());
@@ -340,9 +375,10 @@
     $('#defect-create-fields').toggleClass('d-none', createMode === 'link');
     $('#defect-create-fields input, #defect-create-fields select, #defect-create-fields textarea').prop('disabled', createMode === 'link');
     $('#defect-create-target-wrap').toggleClass('d-none', createMode !== 'link');
-    $('#defect-create-target').prop('disabled', createMode !== 'link');
+    $('#defect-create-target').prop('disabled', createMode !== 'link' || !linkableDefects.length);
   }
   async function loadLinkableDefects(token) {
+    clearPickerFailures('defect-create', ['target']); linkableDefects = [];
     const target = $('#defect-create-target').empty().append(option('', t('defects.loadingDefects', null, 'Loading defects…'))).prop('disabled', true);
     try {
       const rows = await api.get(base('defects'));
@@ -351,7 +387,7 @@
       target.empty().append(option('', linkableDefects.length ? t('defects.selectDefect', null, 'Select a defect') : t('defects.noLinkableDefects', null, 'No open defects available for linking.'))).prop('disabled', !linkableDefects.length);
       linkableDefects.forEach(function (item) { target.append(option(item.id, 'BUG-' + String(item.keyNo).padStart(3, '0') + ' · ' + item.title + ' · ' + label(item.status))); });
       updatePickerSubmit('defect-create');
-    } catch (error) { if (valid(token)) formError('#defect-create-error', error.message); }
+    } catch (error) { pickerReadFailed('defect-create', 'target', error, function () { return loadLinkableDefects(token); }, function () { return valid(token) && createMode === 'link'; }); }
   }
   function showCreate(prefill) {
     if (!active()) return;
@@ -365,6 +401,8 @@
     createLabels();
     loadRuns('defect-create', prefill);
     if (createMode === 'link') loadLinkableDefects(token);
+    if (createMode === 'link') focusHeading('#defect-create-heading');
+    else $('#defect-create-title').trigger('focus');
   }
   function showAction(mode) {
     if (!detail || mutating) return;
@@ -377,6 +415,8 @@
     $('#defect-action-assignee').val(mode === 'reopen' && detail.defect.assigneeId ? detail.defect.assigneeId : '');
     $('#defect-action-submit').prop('disabled', false);
     if (mode !== 'resolve') loadRuns('defect-action');
+    if (mode === 'resolve') $('#defect-resolution').trigger('focus');
+    else focusHeading('#defect-action-title');
   }
   function actionLabels(mode) {
     $('#defect-action-title').text({ resolve: t("defects.resolveDefect", null, 'Resolve defect'), reopen: t("defects.reopenWithANewFAIL", null, 'Reopen with a new FAIL'), add: t("defects.addFailureEvidence", null, 'Add failure evidence') }[mode]);
@@ -423,6 +463,10 @@
       if (run.find('option[value=""]').length) run.find('option[value=""]').text(t(!data.runs ? 'defects.loadingRuns' : data.runs.length ? 'defects.selectARun' : 'defects.noRuns'));
       if (runCase.find('option[value=""]').length) runCase.find('option[value=""]').text(t(!run.val() ? 'defects.selectARunFirst' : !data.cases ? 'defects.loadingRunCases' : data.cases.length ? 'defects.selectARunCase' : 'defects.noRunCases'));
       if (attempt.find('option[value=""]').length) attempt.find('option[value=""]').text(t(!runCase.val() ? 'defects.selectARunCaseFirst' : !sameId(data.caseId, runCase.val()) ? 'defects.loadingFailAttempts' : data.attempts.length ? 'defects.selectAFAILAttempt' : 'defects.noFailAttempts'));
+      Object.keys(pickerFailures[prefix]).forEach(function (field) {
+        $('#' + prefix + '-' + field + ' option[value=""]').text(t('common.unavailable', null, 'Unavailable'));
+        $('#' + prefix + '-' + field + '-retry').text(t('common.retry', null, 'Retry'));
+      });
     }
     for (const prefix of ['defect-create', 'defect-action']) {
       const selected = $('#' + prefix + '-attempt').val();
@@ -442,7 +486,7 @@
   });
   $('#defect-new').on('click', function () { if (navigation()) navigation().open('defects', { projectId: projectId, action: 'create' }); else showCreate(null); });
   $('#defect-back, #defect-create-cancel').on('click', function () { if (navigation()) navigation().open('defects', { projectId: projectId }); else list(); });
-  $('#defect-action-cancel').on('click', function () { actionMode = null; pickerGeneration['defect-action']++; $('#defect-action-form').addClass('d-none'); });
+  $('#defect-action-cancel').on('click', function () { actionMode = null; pickerGeneration['defect-action']++; clearPickerFailures('defect-action'); $('#defect-action-form').addClass('d-none'); focusHeading('#defect-detail-title'); });
   ['defect-create', 'defect-action'].forEach(function (prefix) {
     $('#' + prefix + '-run').on('change', function () { pickerError(prefix, ''); loadCases(prefix); if (prefix === 'defect-create') renderCreateContext(); });
     $('#' + prefix + '-case').on('change', function () { pickerError(prefix, ''); loadAttempts(prefix); if (prefix === 'defect-create') renderCreateContext(); });

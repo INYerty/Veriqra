@@ -82,7 +82,7 @@ input[type="checkbox"] { accent-color: var(--vq-accent); }
 .toast, .modal-content, .dropdown-menu, .popover { background: var(--vq-surface-raised); border-color: var(--vq-border); border-radius: var(--vq-radius-md); box-shadow: var(--vq-shadow-overlay); }
 .toast-header, .modal-header, .modal-footer { border-color: var(--vq-border); padding: var(--vq-space-3) var(--vq-space-4); }
 .modal-body { padding: var(--vq-space-4); }
-.modal-title { font-size: var(--vq-font-lg); font-weight: 650; }
+.modal-title { min-width: 0; overflow-wrap: anywhere; font-size: var(--vq-font-lg); font-weight: 650; }
 .modal-footer { gap: var(--vq-space-2); background: var(--vq-bg); }
 .modal-backdrop { --bs-backdrop-opacity: .35; }
 .pagination { --bs-pagination-color: var(--vq-text-secondary); --bs-pagination-border-color: var(--vq-border); --bs-pagination-active-bg: var(--vq-accent); --bs-pagination-active-border-color: var(--vq-accent); --bs-pagination-font-size: var(--vq-font-sm); }
@@ -139,7 +139,7 @@ input[type="checkbox"] { accent-color: var(--vq-accent); }
 .project-hero p { color: var(--vq-text-secondary); font-size: var(--vq-font-sm); overflow-wrap: anywhere; }
 .info-card { height: 100%; padding: var(--vq-space-4); }
 .info-card .eyebrow { margin-bottom: var(--vq-space-2); }
-.info-value { font-size: var(--vq-font-lg); font-weight: 600; margin: var(--vq-space-1) 0; }
+.info-value { overflow-wrap: anywhere; font-size: var(--vq-font-lg); font-weight: 600; margin: var(--vq-space-1) 0; }
 .info-card .text-secondary { font-size: var(--vq-font-sm); }
 .section-heading { margin: var(--vq-space-5) 0 var(--vq-space-3); }
 .section-heading h2 { font-size: var(--vq-font-lg); }
@@ -183,6 +183,11 @@ input[type="checkbox"] { accent-color: var(--vq-accent); }
 .collab-setup-steps button { text-align: left; white-space: normal; min-height: 28px; padding: 0 .25rem; }
 #collab-task-page-info { font-size: var(--vq-font-xs); color: var(--vq-text-secondary); font-variant-numeric: tabular-nums; }
 [aria-busy="true"] { cursor: progress; }
+/* User-authored names and identifiers must not widen the content column. */
+.content h1, .content h2, .content h3, .content p,
+#collab-people, #collab-teams, #collab-tasks, #collab-task-detail,
+#collab-contribution-list, #collab-credit-history, #collab-team-detail { min-width: 0; overflow-wrap: anywhere; }
+#execution-list .btn { max-width: 100%; white-space: normal; overflow-wrap: anywhere; text-align: left; }
 
 /* LOGIN — authentication only, no promotional hero. */
 .login-page { min-height: 100vh; }

@@ -22,7 +22,7 @@ function deferred() {
 function browser(user = { id: 2, systemRole: 'USER' }) {
   const nodes = new Map(), calls = [], listeners = new Map();
   class Node {
-    constructor() { this.value = ''; this.content = ''; this.children = []; this.handlers = {}; this.hidden = false; this.disabled = false; this.dataset = {}; }
+    constructor() { this.value = ''; this.content = ''; this.children = []; this.handlers = {}; this.hidden = false; this.disabled = false; this.dataset = {}; this[0] = this; this.valid = true; }
     reset() { this.value = ''; }
     on(events, fn) { events.split(' ').forEach(event => { this.handlers[event] = fn; }); return this; }
     text(value) { if (value === undefined) return this.content; this.content = value; return this; }
@@ -36,6 +36,8 @@ function browser(user = { id: 2, systemRole: 'USER' }) {
     prop(name, value) { if (name === 'disabled') this.disabled = value; return this; }
     find() { return this; }
     attr(name, value) { this[name] = value; return this; }
+    reportValidity() { this.validityReported = true; return this.valid; }
+    trigger(name) { if (name === 'focus') document.activeElement = this; return this; }
   }
   function $(selector) {
     if (typeof selector !== 'string') return selector;
@@ -80,7 +82,7 @@ function browser(user = { id: 2, systemRole: 'USER' }) {
   function task(id) { return { id, title: 'Task ' + id, teamId: 1, status: 'OPEN', assigneeUserId: 2, rewardCredit: '7' }; }
   listeners.get('veriqra:project')({ detail: { project: { id: 12, status: 'ACTIVE' } } });
   calls[0].call.resolve(user);
-  return { $, nodes, calls, listeners, respondTasks, task };
+  return { $, nodes, calls, listeners, respondTasks, task, focused: () => document.activeElement };
 }
 
 test('pages render 25/25/10 with reward, previous/next and reset on filter', () => {
@@ -287,4 +289,55 @@ test('write error remains in original area when user changes sections', () => {
   write.call.reject({status:404,message:'No such user'});
   assert.equal(ui.$('#collab-people-feedback').content, 'No such user');
   assert.equal(ui.$('#collab-tasks-feedback').content, '');
+});
+
+test('failed refresh removes stale tasks, ends loading, and retries reads without discarding a form draft', () => {
+  const ui = browser(); ui.respondTasks(1, [ui.task(60)], 60);
+  const staleRow = ui.$('#collab-tasks').children[0];
+  ui.$('#collab-task-title').val('Unsaved task title');
+  const start = ui.calls.length; ui.$('#collab-refresh').handlers.click();
+  ui.calls[start + 3].call.reject({ status: 500, message: 'Tasks unavailable' });
+  assert.equal(ui.$('#collab-tasks').children.includes(staleRow), false);
+  assert.equal(ui.$('#collab-task-page-info').content, 'Unavailable');
+  assert.equal(ui.$('#collab-task-next').disabled, true);
+  for (const area of ['tasks', 'teams', 'people']) assert.equal(ui.$('#collab-pane-' + area)['aria-busy'], 'false');
+  const before = ui.calls.length; staleRow.handlers.click(); assert.equal(ui.calls.length, before);
+  ui.listeners.get('veriqra:localechange')({});
+  assert.equal(ui.$('#collab-task-page-info').content, 'Unavailable');
+  const retry = ui.$('#collab-tasks').children.find(node => node.content === 'Retry');
+  retry.handlers.click(); assert.equal(ui.calls.length, before + 4);
+  ui.respondTasks(before, [], 0);
+  assert.match(ui.$('#collab-tasks').children[0].content, /No visible tasks/);
+  assert.equal(ui.$('#collab-task-page-info').content, 'Page 1 of 1 · Total 0');
+  assert.equal(ui.$('#collab-task-title').val(), 'Unsaved task title');
+  assert.equal(ui.calls.some(call => call.body), false, 'Retry makes no mutation');
+});
+
+test('asynchronous contribution Month A responses cannot replace Month B success or failure', async () => {
+  const member = { userId: 2, username: 'tester', displayName: 'Tester', projectRole: 'TESTER', status: 'ACTIVE', userStatus: 'ACTIVE' };
+  const later = callback => new Promise(resolve => setImmediate(() => { callback(); resolve(); }));
+  for (const failLatest of [false, true]) {
+    const ui = browser(); ui.$('#collab-contribution-month').val('2026-08');
+    ui.respondTasks(1, [], 0, [member]); const a = ui.calls.find(call => call.url.includes('contributions'));
+    ui.$('#collab-contribution-month').val('2026-09'); ui.$('#collab-contribution-month').handlers.change(); const b = ui.calls.at(-1);
+    await later(() => failLatest ? b.call.reject({ status: 500, message: 'September unavailable' }) : b.call.resolve([{ displayName: 'September', username: 'b', score: 2, acceptedTaskCount: 2 }]));
+    await later(() => a.call.resolve([{ displayName: 'August', username: 'a', score: 9, acceptedTaskCount: 9 }]));
+    assert.equal(ui.$('#collab-contribution-list')['aria-busy'], 'false');
+    if (failLatest) {
+      assert.equal(ui.$('#collab-contribution-notice').content, 'September unavailable');
+      assert.equal(ui.$('#collab-contribution-list').children[0].content, 'Unavailable');
+      ui.$('#collab-contribution-notice').children[0].handlers.click();
+      assert.match(ui.calls.at(-1).url, /month=2026-09$/);
+    } else assert.match(ui.$('#collab-contribution-list').children[0].content, /^September/);
+  }
+});
+
+test('Collaboration reports existing form validity before posting and focuses a whitespace-only title', () => {
+  const ui = browser(); ui.respondTasks(1, [], 0);
+  const form = ui.$('#collab-invite-form'); form.valid = false;
+  const before = ui.calls.length; form.handlers.submit.call(form, { preventDefault() {} });
+  assert.equal(form.validityReported, true); assert.equal(ui.calls.length, before);
+  ui.$('#collab-task-team').val('1'); ui.$('#collab-task-assignee').val('2'); ui.$('#collab-task-title').val('   ');
+  const taskForm = ui.$('#collab-task-form'); taskForm.handlers.submit.call(taskForm, { preventDefault() {} });
+  assert.equal(ui.calls.length, before); assert.equal(ui.focused(), ui.$('#collab-task-title'));
 });

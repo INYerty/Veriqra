@@ -21,16 +21,26 @@
     const entry = messages[status] || (status >= 500
       ? ['http.theServerIsUnavailablePleaseTryAgainLater', 'The server is unavailable. Please try again later.']
       : ['http.theRequestCouldNotBeCompleted', 'The request could not be completed.']);
-    let message = t(entry[0], null, entry[1]);
+    let messageKey = entry[0];
+    let messageArgs = null;
+    let messageFallback = entry[1];
+    let message = t(messageKey, messageArgs, messageFallback);
     if (status === 429 && loginAttempt) {
       const delay = global.I18n.formatRetryDelay(seconds);
-      message = delay ? t('auth.loginRateLimited', { time: delay }, 'Too many login attempts. Please try again in {time}.')
-        : t('auth.loginRateLimitedGeneric', null, 'Too many login attempts. Please try again later.');
+      messageKey = delay ? 'auth.loginRateLimited' : 'auth.loginRateLimitedGeneric';
+      messageFallback = delay ? 'Too many login attempts. Please try again in {time}.' : 'Too many login attempts. Please try again later.';
+      message = t(messageKey, delay ? { time: delay } : null, messageFallback);
     } else if (status === 429 && Number.isFinite(seconds) && seconds > 0) {
-      message = t('http.retryAfterSeconds', { seconds: Math.ceil(seconds) }, 'Too many requests. Try again in {seconds} seconds.');
+      messageKey = 'http.retryAfterSeconds';
+      messageArgs = { seconds: Math.ceil(seconds) };
+      messageFallback = 'Too many requests. Try again in {seconds} seconds.';
+      message = t(messageKey, messageArgs, messageFallback);
     }
     const code = xhr.responseJSON && xhr.responseJSON.error && xhr.responseJSON.error.code;
-    return { status: status, message: global.I18n.error({ code: code, message: message }), code: code };
+    // UI descriptors let visible failures follow a locale change without another request.
+    return { status: status, message: global.I18n.error({ code: code, message: message }), code: code,
+      messageKey: messageKey, messageArgs: messageArgs, messageFallback: messageFallback,
+      retryAfterSeconds: Number.isFinite(seconds) && seconds > 0 ? seconds : null };
   }
   function request(method, path, body, options) {
     const settings = options || {};

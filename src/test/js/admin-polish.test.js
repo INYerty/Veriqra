@@ -1,0 +1,291 @@
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const test = require('node:test');
+const vm = require('node:vm');
+
+const source = fs.readFileSync(path.resolve(__dirname, '../../main/webapp/admin/admin.js'), 'utf8');
+const flush = async () => { for (let index = 0; index < 16; index++) await Promise.resolve(); };
+
+function browser(pageName = 'users', options = {}) {
+  const calls = [], listeners = new Map(), modalInstances = new Map();
+  let document;
+  class Element {
+    constructor(tag = 'div') {
+      this.tag = tag; this.children = []; this.content = ''; this.value = ''; this.attributes = {};
+      this.classes = new Set(); this.handlers = {}; this.disabled = false; this.readOnly = false;
+    }
+    get isConnected() { return this === document.body || !!this.parent?.isConnected; }
+    contains(node) { return node === this || this.children.some(child => child instanceof Element && child.contains(node)); }
+    getAttribute(name) { return this.attributes[name] ?? null; }
+    closest(selector) { let node = this; while (node) { if (matches(node, selector)) return node; node = node.parent; } return null; }
+    focus() { if (this.isConnected && !this.disabled) document.activeElement = this; }
+    setSelectionRange(start, end) { this.selectionStart = start; this.selectionEnd = end; }
+    checkValidity() { return descendants(this).every(node => !node.required || !!node.value); }
+  }
+  const descendants = node => node.children.flatMap(child => child instanceof Element ? [child, ...descendants(child)] : []);
+  function matches(node, selector) {
+    if (selector === ':invalid') return node.required && !node.value;
+    if (selector.startsWith('#')) return node.id === selector.slice(1);
+    if (selector.startsWith('.')) return selector.slice(1).split('.').every(name => node.classes.has(name));
+    const attribute = /^\[([\w-]+)(?:="([^"]*)")?\]$/.exec(selector);
+    if (attribute) return node.attributes[attribute[1]] != null && (attribute[2] == null || node.attributes[attribute[1]] === attribute[2]);
+    return node.tag === selector;
+  }
+  function emit(node, name, event = {}) {
+    const data = { preventDefault() {}, ...event };
+    return (node.handlers[name] || []).slice().map(fn => fn.call(node, data));
+  }
+  class Collection extends Array {
+    get jquery() { return 'test'; }
+    each(fn) { this.forEach((node, index) => fn.call(node, index, node)); return this; }
+    on(names, fn) { return this.each(function () { names.split(' ').forEach(name => (this.handlers[name] ||= []).push(fn)); }); }
+    one(name, fn) { return this.each(function () { const node = this; const once = event => { node.handlers[name] = node.handlers[name].filter(handler => handler !== once); return fn.call(node, event); }; (this.handlers[name] ||= []).push(once); }); }
+    text(value) { if (value === undefined) return this[0]?.content; return this.empty().each(function () { this.content = String(value); }); }
+    val(value) { if (value === undefined) return this[0]?.value; return this.each(function () { this.value = value == null ? '' : String(value); }); }
+    empty() { return this.each(function () { this.children.forEach(child => { if (child instanceof Element) child.parent = null; }); this.children = []; this.content = ''; if (!document.activeElement.isConnected) document.activeElement = document.body; }); }
+    append(...items) { return this.each(function () { items.flatMap(item => item instanceof Collection ? [...item] : [item]).forEach(item => { if (item instanceof Element) { if (item.parent) item.parent.children = item.parent.children.filter(child => child !== item); item.parent = this; } this.children.push(item); }); }); }
+    attr(name, value) { if (typeof name === 'object') { Object.entries(name).forEach(([key, item]) => this.attr(key, item)); return this; } if (value === undefined) return this[0]?.attributes[name]; return this.each(function () { if (value == null) delete this.attributes[name]; else this.attributes[name] = String(value); if (['id', 'name', 'type'].includes(name)) this[name] = value; }); }
+    prop(name, value) { if (value === undefined) return this[0]?.[name]; return this.each(function () { this[name] = value; }); }
+    addClass(names) { return this.each(function () { names.split(' ').forEach(name => this.classes.add(name)); }); }
+    removeClass(names) { return this.each(function () { names.split(' ').forEach(name => this.classes.delete(name)); }); }
+    toggleClass(names, force) { return this.each(function () { names.split(' ').forEach(name => { if (force ?? !this.classes.has(name)) this.classes.add(name); else this.classes.delete(name); }); }); }
+    hasClass(name) { return !!this[0]?.classes.has(name); }
+    find(selector) { return collection(Array.from(this).flatMap(node => descendants(node)).filter(node => selector.split(',').some(part => matches(node, part.trim())))); }
+    filter(fn) { return collection(Array.from(this).filter((node, index) => fn.call(node, index, node))); }
+    trigger(name) { return this.each(function () { emit(this, name); }); }
+    remove() { return this.each(function () { if (this.parent) this.parent.children = this.parent.children.filter(child => child !== this); this.parent = null; if (!document.activeElement.isConnected) document.activeElement = document.body; }); }
+    data(name) { return this[0]?.attributes['data-' + name]; }
+  }
+  const collection = items => Collection.from(items);
+  const body = new Element('body');
+  body.attributes['data-admin-page'] = pageName;
+  document = { body, activeElement: body, baseURI: 'http://localhost/admin/users.html',
+    addEventListener(name, fn) { listeners.set(name, fn); },
+    querySelectorAll(selector) { return descendants(body).filter(node => matches(node, selector)); } };
+  function $(selector) {
+    if (selector instanceof Element) return collection([selector]);
+    if (selector instanceof Collection) return selector;
+    if (selector.startsWith('<')) {
+      const node = new Element(/^<([\w-]+)/.exec(selector)[1]); const result = collection([node]);
+      for (const match of selector.matchAll(/([\w-]+)="([^"]*)"/g)) { if (match[1] === 'class') result.addClass(match[2]); else result.attr(match[1], match[2]); }
+      return result;
+    }
+    if (selector === 'body') return collection([body]);
+    return collection(descendants(body).filter(node => matches(node, selector)));
+  }
+  for (const id of ['admin-content', 'admin-feedback', 'admin-menu', 'admin-sidebar', 'admin-logout', 'admin-user']) $('body').append($('<div>').attr('id', id));
+  function request(method, url, body) { let resolve, reject; const promise = new Promise((yes, no) => { resolve = yes; reject = no; }); calls.push({ method, url, body, resolve, reject }); return promise; }
+  const api = { get: url => request('GET', url), post: (url, body) => request('POST', url, body), action: request };
+  class Modal {
+    constructor(root) { this.root = root; modalInstances.set(root, this); }
+    show() { $(this.root).addClass('show'); emit(this.root, 'shown.bs.modal'); }
+    hide() { $(this.root).removeClass('show'); emit(this.root, 'hidden.bs.modal'); }
+    dispose() { modalInstances.delete(this.root); }
+    static getInstance(root) { return modalInstances.get(root); }
+  }
+  const window = { VeriqraApi: api, VeriqraAccessLogFormat: { operatingSystem: value => value }, confirm: () => true,
+    I18n: { init: options.init || (async () => {}), t: options.t || ((key, params, fallback) => (fallback || key).replace(/\{(\w+)\}/g, (_, name) => params?.[name] ?? '')),
+      error: error => error.message || 'Unavailable', formatDateTime: value => String(value), formatCredit: value => String(value),
+      enumLabel: value => value, formatNumber: value => String(value), toUtcFilter: value => value } };
+  vm.runInNewContext(source, { window, document, jQuery: $, bootstrap: { Modal }, URL, URLSearchParams, location: { search: '', replace() {} } });
+  const textOf = node => node.content + node.children.map(child => child instanceof Element ? textOf(child) : String(child)).join('');
+  const find = (scope, label) => [...$(scope).find('button')].find(node => node.content === label);
+  async function click(node) {
+    assert.ok(node, 'Expected button exists'); node.focus(); emit(node, 'click');
+    if (node.getAttribute('data-bs-dismiss') === 'modal') Modal.getInstance(node.closest('.modal'))?.hide();
+    await flush();
+  }
+  function submit(form) { const pending = emit(form, 'submit'); return Promise.all(pending); }
+  async function respond(call, value) { call.resolve(value); await flush(); }
+  async function reject(call, message = 'Unavailable') { call.reject({ status: 503, message }); await flush(); }
+  async function authorize(role = 'ADMIN') { await flush(); await respond(calls.at(-1), { username: 'admin', systemRole: role }); }
+  async function locale() { listeners.get('veriqra:localechange')(); await flush(); }
+  return { $, calls, document, textOf, find, click, submit, respond, reject, authorize, locale, Modal };
+}
+
+const paged = (items = [], page = 1, total = items.length) => ({ items, page, pageSize: 25, total });
+const account = { userId: 7, username: 'tester', displayName: 'Tester', status: 'ACTIVE', balance: 10 };
+const summary = { totalBalance: 10, totalIssued: 10, totalReclaimed: 0, usersWithBalance: 1 };
+const ledger = reason => paged([{ userId: 7, type: 'GRANT', amount: 10, actorUserId: 1, reason }], 1, 60);
+async function creditsReady(ui, history = ledger('Earlier ledger row')) {
+  await ui.authorize();
+  await ui.respond(ui.calls.find(call => call.url.startsWith('admin/credits?')), paged([account], 1, 60));
+  await ui.respond(ui.calls.find(call => call.url === 'admin/credits/summary'), summary);
+  await ui.respond(ui.calls.at(-1), history);
+}
+
+test('authorization waits for the locale catalog before displaying its loading message', async () => {
+  let ready = false, resolveInit;
+  const initialization = new Promise(resolve => { resolveInit = () => { ready = true; resolve(); }; });
+  const ui = browser('users', { init: () => initialization,
+    t: (key, params, fallback) => key === 'admin.checkingAdministratorAccess' && ready ? '正在检查管理员权限…' : fallback || key });
+  await flush();
+  assert.equal(ui.textOf(ui.$('#admin-content')[0]), '');
+  assert.equal(ui.$('#admin-content').attr('aria-busy'), 'true');
+  assert.equal(ui.calls.length, 0, 'Authorization GET waits for initialization');
+  resolveInit(); await flush();
+  assert.equal(ui.textOf(ui.$('#admin-content')[0]), '正在检查管理员权限…');
+  assert.doesNotMatch(ui.textOf(ui.$('#admin-content')[0]), /Checking administrator access/);
+  assert.equal(ui.calls.length, 1); assert.equal(ui.calls[0].url, 'auth/me');
+  await ui.respond(ui.calls[0], { username: 'tester', systemRole: 'USER' });
+});
+
+test('authorization failure ends checking state and Retry verifies authorization before rendering', async () => {
+  const ui = browser(); await flush(); await ui.reject(ui.calls[0], 'Authorization unavailable');
+  assert.match(ui.textOf(ui.$('#admin-content')[0]), /Authorization unavailable/);
+  assert.doesNotMatch(ui.textOf(ui.$('#admin-content')[0]), /Checking/);
+  assert.equal(ui.$('#admin-content').attr('aria-busy'), 'false');
+  await ui.click(ui.find('#admin-content', 'Retry'));
+  assert.equal(ui.calls.at(-1).url, 'auth/me');
+  await ui.respond(ui.calls.at(-1), { username: 'tester', systemRole: 'USER' });
+  assert.match(ui.textOf(ui.$('#admin-content')[0]), /Forbidden/);
+  assert.equal(ui.calls.some(call => call.url.startsWith('admin/')), false);
+});
+
+test('page failure offers a GET Retry and ends loading', async () => {
+  const ui = browser(); await ui.authorize(); await ui.reject(ui.calls.at(-1), 'Users unavailable');
+  assert.match(ui.textOf(ui.$('#admin-content')[0]), /Users unavailable/);
+  assert.equal(ui.$('#admin-content').attr('aria-busy'), 'false');
+  await ui.click(ui.find('#admin-content', 'Retry'));
+  assert.equal(ui.calls.at(-1).method, 'GET'); assert.match(ui.calls.at(-1).url, /^admin\/users\?/);
+  await ui.respond(ui.calls.at(-1), paged());
+  assert.match(ui.textOf(ui.$('#admin-content')[0]), /No matching records/);
+  assert.equal(ui.calls.some(call => call.method !== 'GET'), false);
+});
+
+test('credit-history failure clears stale rows and its Retry reloads only the ledger', async () => {
+  const ui = browser('credits'); await creditsReady(ui);
+  ui.$('#credit-history').find('[name="username"]').val('tester');
+  await ui.click(ui.find('#credit-history', 'Apply filters'));
+  assert.doesNotMatch(ui.textOf(ui.$('#credit-history')[0]), /Earlier ledger row/);
+  assert.equal(ui.$('#credit-history').attr('aria-busy'), 'true');
+  await ui.reject(ui.calls.at(-1), 'Ledger unavailable');
+  assert.match(ui.textOf(ui.$('#credit-history')[0]), /Ledger unavailable/);
+  assert.doesNotMatch(ui.textOf(ui.$('#credit-history')[0]), /Loading/);
+  assert.equal(ui.$('#credit-history').attr('aria-busy'), 'false');
+  const before = ui.calls.length;
+  await ui.click(ui.find('#credit-history', 'Retry'));
+  assert.equal(ui.calls.length, before + 1); assert.match(ui.calls.at(-1).url, /credits\/transactions\?.*username=tester/);
+  await ui.respond(ui.calls.at(-1), ledger('Refreshed ledger row'));
+  assert.match(ui.textOf(ui.$('#credit-history')[0]), /Refreshed ledger row/);
+  assert.equal(ui.calls.some(call => call.method !== 'GET'), false);
+});
+
+test('older ledger successes and failures cannot replace a newer filtered ledger', async () => {
+  for (const obsoleteFails of [false, true]) {
+    const ui = browser('credits'); await creditsReady(ui);
+    ui.$('#credit-history').find('[name="username"]').val('old'); await ui.click(ui.find('#credit-history', 'Apply filters')); const obsolete = ui.calls.at(-1);
+    ui.$('#credit-history').find('[name="username"]').val('current'); await ui.click(ui.find('#credit-history', 'Apply filters'));
+    await ui.respond(ui.calls.at(-1), ledger('Current owner row'));
+    if (obsoleteFails) await ui.reject(obsolete, 'Old error'); else await ui.respond(obsolete, ledger('Old row'));
+    assert.match(ui.textOf(ui.$('#credit-history')[0]), /Current owner row/);
+    assert.doesNotMatch(ui.textOf(ui.$('#credit-history')[0]), /Old row|Old error/);
+    assert.equal(ui.$('#credit-history').attr('aria-busy'), 'false');
+  }
+});
+
+test('ledger completion from a superseded page cannot affect the refreshed page', async () => {
+  const ui = browser('credits'); await creditsReady(ui);
+  await ui.click(ui.find('#credit-history', 'Next')); const obsolete = ui.calls.at(-1);
+  await ui.locale(); const reads = ui.calls.slice(-2);
+  await ui.respond(reads[0], paged([account], 1, 60)); await ui.respond(reads[1], summary);
+  const current = ui.calls.at(-1); await ui.respond(current, ledger('Current page ledger'));
+  const restoredNext = ui.$('#credit-history').find('[data-admin-focus="page-next"]')[0];
+  assert.equal(ui.document.activeElement, restoredNext, 'Ledger pagination focus stays in its own section');
+  await ui.reject(obsolete, 'Superseded ledger error');
+  assert.match(ui.textOf(ui.$('#credit-history')[0]), /Current page ledger/);
+  assert.doesNotMatch(ui.textOf(ui.$('#admin-content')[0]), /Superseded/);
+});
+
+test('accepted user mutation plus failed refresh is explicit and Retry never repeats the write', async () => {
+  const ui = browser(); await ui.authorize(); await ui.respond(ui.calls.at(-1), paged());
+  await ui.click(ui.find('#admin-content', 'Create user'));
+  const form = ui.$('.modal').find('form')[0];
+  ui.$(form).find('[name="username"]').val('new-user'); ui.$(form).find('[name="displayName"]').val('New user'); ui.$(form).find('[name="password"]').val('TemporaryPassword123!');
+  const saving = ui.submit(form); ui.submit(form); await flush();
+  const write = ui.calls.at(-1); assert.equal(write.method, 'POST'); assert.equal(ui.calls.filter(call => call.method === 'POST').length, 1);
+  await ui.respond(write, { id: 10 });
+  assert.equal(ui.$('.modal').length, 0);
+  await ui.reject(ui.calls.at(-1), 'Refresh unavailable'); await saving;
+  assert.match(ui.textOf(ui.$('#admin-feedback')[0]), /Change saved, but the page could not be refreshed/);
+  await ui.click(ui.find('#admin-feedback', 'Retry'));
+  assert.equal(ui.calls.at(-1).method, 'GET'); await ui.respond(ui.calls.at(-1), paged());
+  assert.equal(ui.$('#admin-feedback').text(), 'Change saved.'); assert.equal(ui.calls.filter(call => call.method === 'POST').length, 1);
+});
+
+test('accepted credit grant reports partial success when only the ledger refresh fails', async () => {
+  const ui = browser('credits'); await creditsReady(ui); await ui.click(ui.find('#admin-content', 'Grant'));
+  const form = ui.$('.modal').find('form')[0]; ui.$(form).find('[name="amount"]').val('5');
+  const saving = ui.submit(form); await flush(); const write = ui.calls.at(-1);
+  await ui.respond(write, {}); const reads = ui.calls.slice(-2);
+  await ui.respond(reads[0], paged([account], 1, 60)); await ui.respond(reads[1], summary);
+  await ui.reject(ui.calls.at(-1), 'Ledger refresh unavailable'); await saving;
+  assert.match(ui.textOf(ui.$('#admin-feedback')[0]), /Change saved, but the page could not be refreshed/);
+  assert.match(ui.textOf(ui.$('#credit-history')[0]), /Ledger refresh unavailable/);
+  const before = ui.calls.length; await ui.click(ui.find('#credit-history', 'Retry'));
+  assert.equal(ui.calls.length, before + 1); assert.match(ui.calls.at(-1).url, /credits\/transactions/);
+  await ui.respond(ui.calls.at(-1), ledger('Confirmed grant'));
+  assert.equal(ui.calls.filter(call => call.method === 'POST').length, 1);
+});
+
+test('rejected mutation keeps editable modal values and re-enables submission without a refresh', async () => {
+  const ui = browser('credits'); await creditsReady(ui); await ui.click(ui.find('#admin-content', 'Grant'));
+  const form = ui.$('.modal').find('form')[0]; ui.$(form).find('[name="amount"]').val('5'); ui.$(form).find('[name="reason"]').val('Typed reason');
+  const saving = ui.submit(form); await flush(); const before = ui.calls.length;
+  await ui.reject(ui.calls.at(-1), 'Grant rejected'); await saving;
+  assert.equal(ui.calls.length, before); assert.equal(ui.$('.modal').length, 1);
+  assert.equal(ui.$(form).find('[name="reason"]').val(), 'Typed reason');
+  assert.match(ui.textOf(ui.$('.modal')[0]), /Grant rejected/);
+  assert.equal(ui.find('.modal', 'Grant').disabled, false);
+  assert.doesNotMatch(ui.textOf(ui.$('#admin-feedback')[0]), /Change saved/);
+});
+
+test('modal has a visible programmatic title, direct flex sections, autofocus and dismissal focus', async () => {
+  const ui = browser(); await ui.authorize(); await ui.respond(ui.calls.at(-1), paged());
+  const opener = ui.find('#admin-content', 'Create user'); await ui.click(opener);
+  let root = ui.$('.modal')[0], form = ui.$(root).find('form')[0];
+  const title = ui.$(root).find('.modal-title')[0];
+  assert.equal(root.getAttribute('aria-labelledby'), title.id); assert.equal(title.content, 'Create user');
+  assert.ok(form.classes.has('modal-content')); assert.equal(form.parent.tag, 'div'); assert.ok(form.parent.classes.has('modal-dialog'));
+  assert.deepEqual(form.children.map(node => [...node.classes][0]), ['modal-header', 'modal-body', 'modal-footer']);
+  assert.equal(ui.document.activeElement.name, 'username');
+  await ui.click(ui.find('.modal', 'Cancel')); assert.equal(ui.document.activeElement, opener); assert.equal(ui.$('.modal').length, 0);
+  await ui.click(opener); root = ui.$('.modal')[0]; ui.Modal.getInstance(root).hide();
+  assert.equal(ui.document.activeElement, opener, 'Escape/hidden dismissal restores the connected opener');
+  await ui.click(opener); ui.$(opener).remove(); await ui.click(ui.find('.modal', 'Cancel'));
+  assert.equal(ui.document.activeElement, ui.$('#admin-content')[0], 'A detached opener uses the connected page fallback');
+  assert.equal(ui.calls.some(call => call.method !== 'GET'), false);
+});
+
+test('filter text selection and paging focus survive page replacement with an enabled last-page fallback', async () => {
+  const ui = browser('login-history'); await ui.authorize(); await ui.respond(ui.calls.at(-1), paged([], 1, 60));
+  let input = ui.$('#admin-content').find('[name="username"]')[0]; input.value = 'tester'; input.focus(); input.setSelectionRange(2, 4);
+  ui.submit(ui.$('#admin-content').find('form')[0]); await flush(); await ui.respond(ui.calls.at(-1), paged([], 1, 60));
+  input = ui.$('#admin-content').find('[name="username"]')[0];
+  assert.equal(ui.document.activeElement, input); assert.equal(input.value, 'tester'); assert.equal(input.selectionStart, 2); assert.equal(input.selectionEnd, 4);
+  await ui.click(ui.find('#admin-content', 'Next')); await ui.respond(ui.calls.at(-1), paged([], 2, 60));
+  assert.equal(ui.document.activeElement, ui.find('#admin-content', 'Next'));
+  await ui.click(ui.find('#admin-content', 'Next')); await ui.respond(ui.calls.at(-1), paged([], 3, 60));
+  assert.equal(ui.find('#admin-content', 'Next').disabled, true); assert.equal(ui.document.activeElement, ui.find('#admin-content', 'Previous'));
+});
+
+test('pending ledger read retains newer filter edits and focus chosen while loading', async () => {
+  const ui = browser('credits'); await creditsReady(ui);
+  await ui.click(ui.find('#credit-history', 'Apply filters')); const pending = ui.calls.at(-1);
+  const input = ui.$('#credit-history').find('[name="username"]')[0]; input.value = 'Newly typed'; input.focus(); input.setSelectionRange(3, 5);
+  await ui.respond(pending, ledger('Latest row'));
+  assert.equal(ui.document.activeElement, input); assert.equal(input.value, 'Newly typed'); assert.equal(input.selectionStart, 3);
+  await ui.click(ui.find('#credit-history', 'Apply filters'));
+  assert.match(ui.calls.at(-1).url, /username=Newly\+typed/);
+  await ui.respond(ui.calls.at(-1), ledger('Applied newer edit'));
+});
+
+test('failed whole-page refresh from ledger pagination focuses the visible page Retry', async () => {
+  const ui = browser('credits'); await creditsReady(ui);
+  const next = ui.$('#credit-history').find('[data-admin-focus="page-next"]')[0]; next.focus();
+  await ui.locale(); await ui.reject(ui.calls.at(-2), 'Credits unavailable');
+  assert.equal(ui.document.activeElement, ui.find('#admin-content', 'Retry'));
+  await ui.reject(ui.calls.at(-1), 'Summary unavailable');
+  assert.match(ui.textOf(ui.$('#admin-content')[0]), /Credits unavailable/);
+});

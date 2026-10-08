@@ -12,6 +12,9 @@
   let importBusy = false;
   let importResult = null;
   let identityRows = null;
+  let identityReadState = 'idle';
+  let identityFailure = null;
+  let identitySavedKey = null;
   const active = function () { return view === 'automation' && !!projectId; };
   const valid = function (token) { return active() && token === generation; };
   const base = function (resource) { return 'projects/' + encodeURIComponent(projectId) + '/' + resource; };
@@ -21,9 +24,10 @@
     const colors = { ACTIVE: 'success', INACTIVE: 'secondary', PASS: 'success', FAIL: 'danger', BLOCKED: 'warning', SKIPPED: 'info' };
     return $('<span>').addClass('badge text-bg-' + (colors[state] || 'secondary')).attr('data-vq-state', state).text(state ? window.I18n.enumLabel(state) : t("automation.unmapped", null, 'Unmapped'));
   };
-  function notice(message, error) {
+  function notice(message, error, partial) {
     $('#automation-notice').text(message || '').toggleClass('d-none', !message)
-      .toggleClass('alert-danger', !!error).toggleClass('alert-success', !!message && !error);
+      .toggleClass('alert-danger', !!error && !partial).toggleClass('alert-warning', !!partial)
+      .toggleClass('alert-success', !!message && !error && !partial);
   }
   function status(message, error) {
     $('#import-status').text(message || '').toggleClass('text-danger', !!error).toggleClass('text-success', !!message && !error);
@@ -41,6 +45,7 @@
   function reset() {
     ++generation;
     identityRows = null;
+    identityReadState = 'idle'; identityFailure = null; identitySavedKey = null;
     selectedFile = null;
     importResult = null;
     importBusy = false;
@@ -103,7 +108,7 @@
           try {
             await api.put(identityPath(identity.id) + '/mapping', { testCaseId: caseId,
               expectedVersion: mapping ? mapping.version : null });
-            if (valid(token)) { invalidatePreview(true); await load(); notice(t("automation.mappingConfirmedPreviewTheXMLAgainBeforeImport", null, 'Mapping confirmed. Preview the XML again before import.')); }
+            if (valid(token)) { invalidatePreview(true); await load('automation.mappingConfirmedPreviewTheXMLAgainBeforeImport'); }
           } catch (error) { if (valid(token)) notice(conflict(error), true); }
           finally { if (valid(token)) { confirm.prop('disabled', false); select.prop('disabled', false); } }
         });
@@ -117,7 +122,7 @@
           deactivate.prop('disabled', true);
           try {
             await api.post(identityPath(identity.id) + '/mapping/deactivate', { expectedVersion: mapping.version });
-            if (valid(token)) { invalidatePreview(true); await load(); notice(t("automation.mappingDeactivatedPreviewTheXMLAgainBeforeImport", null, 'Mapping deactivated. Preview the XML again before import.')); }
+            if (valid(token)) { invalidatePreview(true); await load('automation.mappingDeactivatedPreviewTheXMLAgainBeforeImport'); }
           } catch (error) { if (valid(token)) notice(conflict(error), true); }
           finally { if (valid(token)) deactivate.prop('disabled', false); }
         });
@@ -125,9 +130,22 @@
     }
     return card.append(actions);
   }
-  async function load() {
+  function renderIdentityFailure() {
+    const token = generation, savedKey = identitySavedKey;
+    $('#automation-status').text(t('common.unavailable', null, 'Unavailable'));
+    $('#automation-identities').empty().append($('<button type="button" class="btn btn-outline-secondary btn-sm">')
+      .text(t('common.retry', null, 'Retry')).on('click', function () {
+        if (!valid(token) || identityReadState !== 'failed') return;
+        return load(savedKey);
+      }));
+    notice((savedKey ? t('automation.savedRefreshFailed', null, 'Saved, but identities and mappings could not be refreshed. Retry loading; do not repeat the saved action.') + ' ' : '')
+      + identityFailure.message, true, !!savedKey);
+  }
+  async function load(savedKey) {
     if (!active()) return;
     const token = ++generation;
+    identityRows = null; identityReadState = 'loading'; identityFailure = null; identitySavedKey = savedKey || null;
+    notice('');
     $('#automation-identities').empty(); $('#automation-status').text(t("automation.loadingIdentitiesAndMappings", null, 'Loading identities and mappings…'));
     try {
       const [identities, mappings, cases] = await Promise.all([
@@ -135,8 +153,14 @@
       ]);
       if (!valid(token)) return;
       identityRows = { identities: identities, mappings: mappings, cases: cases };
+      identityReadState = 'ready';
       renderIdentities();
-    } catch (error) { if (valid(token)) { $('#automation-status').text(''); notice(error.message, true); } }
+      if (identitySavedKey) notice(t(identitySavedKey));
+      return true;
+    } catch (error) {
+      if (valid(token)) { identityReadState = 'failed'; identityFailure = error; renderIdentityFailure(); }
+      return false;
+    }
   }
   function renderIdentities() {
     if (!identityRows) return;
@@ -228,8 +252,12 @@
   });
   document.addEventListener('veriqra:localechange', function () {
     if (!active()) return;
-    notice('');
-    renderIdentities();
+    if (identityReadState === 'failed') renderIdentityFailure();
+    else {
+      notice(''); renderIdentities();
+      if (identityReadState === 'loading') $('#automation-status').text(t('automation.loadingIdentitiesAndMappings'));
+      else if (identitySavedKey) notice(t(identitySavedKey));
+    }
     if (preview) renderPreview(preview.response);
     if (importResult) renderImport(importResult);
     $('#import-file-status').text(selectedFile ? t('automation.selectedFile',
@@ -249,7 +277,7 @@
     $('#automation-register-submit').prop('disabled', true); notice('');
     try {
       await api.post(base('automation/identities'), body);
-      if (valid(token)) { invalidatePreview(true); $('#automation-register')[0].reset(); await load(); notice(t("automation.identityRegisteredConfirmItsMappingManually", null, 'Identity registered. Confirm its mapping manually.')); }
+      if (valid(token)) { invalidatePreview(true); $('#automation-register')[0].reset(); await load('automation.identityRegisteredConfirmItsMappingManually'); }
     } catch (error) { if (valid(token)) notice(error.message, true); }
     finally { if (active()) $('#automation-register-submit').prop('disabled', false); }
   });

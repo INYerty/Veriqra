@@ -852,5 +852,8 @@
   "execution.planMembershipDraftHint": "添加或移除用例后，此计划会回到草稿状态。再次标记为就绪后才能创建运行。",
   "assets.caseCreatedLinkPendingWithId": "测试用例 #{id} 已创建，但与需求 #{requirementId} 的关联未保存。请重试关联此已保存的用例。",
   "execution.planCaseCount": "将捕获 {count} 个已包含的用例。",
-  "execution.runSnapshotNotice": "创建此运行时，将冻结所包含的测试用例及其步骤。之后对计划或测试用例的修改不会改变此运行。"
+  "execution.runSnapshotNotice": "创建此运行时，将冻结所包含的测试用例及其步骤。之后对计划或测试用例的修改不会改变此运行。",
+  "admin.changeSavedRefreshFailed": "更改已保存，但页面刷新失败。请重试加载以查看最新信息。",
+  "automation.savedRefreshFailed": "已保存，但身份和映射刷新失败。请重试加载，不要重复已保存的操作。",
+  "shell.projectsUnavailable": "无法加载项目"
 }

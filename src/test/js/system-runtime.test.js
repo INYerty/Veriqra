@@ -34,7 +34,7 @@ async function systemPage(locale) {
     formatDateTime: value => 'Shanghai:' + value
   }, VeriqraAccessLogFormat: { operatingSystem: value => value } };
   const api = { get: url => url === 'auth/me'
-    ? { done: fn => { fn({ username: 'admin', systemRole: 'ADMIN' }); return { fail() {} }; } }
+    ? Promise.resolve({ username: 'admin', systemRole: 'ADMIN' })
     : Promise.resolve(runtime) };
   window.VeriqraApi = api;
   vm.runInNewContext(source, { window, document: { addEventListener() {} },

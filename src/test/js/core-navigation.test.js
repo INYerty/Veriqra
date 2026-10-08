@@ -28,7 +28,7 @@ function browser(href = 'http://127.0.0.1:9000/veriqra/index.html?projectId=7#da
     constructor(items) { this.items = items; this.length = items.length; items.forEach((item, index) => { this[index] = item; }); }
     each(fn) { this.items.forEach((item, index) => fn.call(item, index)); return this; }
     on(names, fn) { return this.each(function () { names.split(' ').forEach(name => { if (!this.handlers.has(name)) this.handlers.set(name, []); this.handlers.get(name).push(fn); }); }); }
-    text(value) { if (value === undefined) return this.items[0]?.content; return this.each(function () { this.content = String(value); }); }
+    text(value) { if (value === undefined) return this.items[0]?.content; return this.each(function () { this.content = String(value); this.children = []; }); }
     val(value) { if (value === undefined) return this.items[0]?.value; return this.each(function () { this.value = String(value); }); }
     empty() { return this.each(function () { this.children = []; this.content = ''; }); }
     append(...children) { return this.each(function () { this.children.push(...children.flatMap(child => child instanceof Collection ? child.items : [child])); }); }
@@ -109,6 +109,7 @@ function browser(href = 'http://127.0.0.1:9000/veriqra/index.html?projectId=7#da
   return { $, requests, events, location, history, sidebar, saved, project, boot, nav: window.VeriqraQaNavigation,
     click: (node, fields) => fire(node, 'click', fields), changeProject(id) { $('#project-select').val(id); fire($('#project-select')[0], 'change'); },
     fireWindow: (name, fields) => fire(windowNode, name, fields), lastView: () => events.filter(event => event.type === 'veriqra:view').at(-1),
+    fireDocument: name => document.dispatchEvent({ type: name }),
     lastProject: () => events.filter(event => event.type === 'veriqra:project').at(-1) };
 }
 
@@ -258,4 +259,65 @@ test('href filters invalid or irrelevant IDs and does not mutate navigation stat
   const target = new URL(href);
   assert.deepEqual(Object.fromEntries(target.searchParams), { projectId: '7', runId: '40', runCaseId: '50' });
   assert.equal(ui.location.href, before); assert.equal(ui.events.length, count);
+});
+
+test('project-list network and server failures end the loading caption and retry only their GET', async () => {
+  for (const status of [0, 503]) {
+    const ui = browser(); ui.fireWindow('pageshow'); await flush();
+    ui.requests[0].resolve({ id: 1, username: 'tester', systemRole: 'USER' });
+    assert.equal(ui.$('#project-select')[0].children[0].content, 'Loading projects…');
+    ui.requests[1].reject({ status, message: 'Projects unavailable' });
+    assert.equal(ui.$('#project-select')[0].children[0].content, 'Projects could not be loaded');
+    assert.equal(ui.$('#project-select').prop('disabled'), true);
+    assert.equal(ui.$('#app-shell').hasClass('d-none'), false);
+    assert.equal(ui.$('#bootstrap-screen').hasClass('d-none'), true);
+    const retry = ui.$('#page-alert')[0].children.find(node => node.tag === 'button');
+    assert.equal(retry.content, 'Retry'); assert.equal(retry.attrs['data-i18n'], 'common.retry');
+    ui.click(retry); ui.click(retry);
+    assert.equal(ui.requests.length, 3); assert.equal(ui.requests[2].url, 'projects');
+    assert.equal(ui.$('#page-alert').hasClass('d-none'), true);
+    assert.equal(ui.$('#project-select')[0].children[0].content, 'Loading projects…');
+    ui.requests[2].resolve([ui.project(7)]);
+    assert.equal(ui.requests[3].url, 'projects/7');
+    assert.equal(ui.$('#project-select').prop('disabled'), true, 'Keep selection locked while its detail GET is pending');
+    ui.requests[3].resolve(ui.project(7));
+    assert.equal(ui.$('#project-select').prop('disabled'), false);
+    assert.equal(ui.lastProject().detail.project.id, 7);
+    assert.equal(ui.$('#project-dashboard').hasClass('d-none'), false);
+    assert.equal(ui.requests.filter(request => request.url === 'auth/me').length, 1);
+    assert.equal(ui.requests.every(request => request.method === 'get'), true);
+  }
+});
+
+test('failed project detail retry stays scoped to its project and cannot revive the previous workspace on language change', async () => {
+  const ui = browser(); await ui.boot(); ui.changeProject('8');
+  ui.requests[3].reject({ status: 503, message: 'Project unavailable' });
+  assert.equal(ui.$('#project-select').prop('disabled'), false);
+  const retry = ui.$('#page-alert')[0].children.find(node => node.tag === 'button');
+  ui.fireDocument('veriqra:localechange');
+  assert.equal(ui.$('#project-dashboard').hasClass('d-none'), true);
+  assert.equal(ui.lastProject().detail.project, null);
+  ui.click(retry); ui.click(retry);
+  assert.equal(ui.requests.length, 5); assert.equal(ui.requests[4].url, 'projects/8');
+  assert.equal(ui.$('#project-select').prop('disabled'), true);
+  ui.requests[4].resolve(ui.project(8));
+  assert.equal(ui.$('#project-select').prop('disabled'), false);
+  assert.equal(ui.lastProject().detail.project.id, 8);
+  assert.equal(ui.$('#page-alert').hasClass('d-none'), true);
+  assert.equal(ui.$('#page-alert')[0].children.length, 0);
+  assert.equal(ui.requests.filter(request => request.url === 'auth/me').length, 1);
+  assert.equal(ui.requests.every(request => request.method === 'get'), true);
+});
+
+test('membership revalidation keeps the picker locked until its list GET settles and supplies a scoped retry on failure', async () => {
+  const ui = browser(); await ui.boot(); ui.changeProject('8');
+  ui.requests[3].reject({ status: 403, message: 'Access changed' });
+  assert.equal(ui.requests[4].url, 'projects');
+  assert.equal(ui.$('#project-select').prop('disabled'), true);
+  ui.requests[4].reject({ status: 503, message: 'Projects unavailable' });
+  assert.equal(ui.$('#project-select').prop('disabled'), false);
+  const retry = ui.$('#page-alert')[0].children.find(node => node.tag === 'button'); ui.click(retry);
+  assert.equal(ui.requests.at(-1).url, 'projects');
+  assert.equal(ui.requests.filter(request => request.url === 'auth/me').length, 1);
+  assert.equal(ui.requests.every(request => request.method === 'get'), true);
 });

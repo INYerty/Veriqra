@@ -5,8 +5,24 @@
   const submit = $('#login-submit');
   const error = $('#login-error');
   let busy = false;
+  let feedbackDescriptor = null;
 
-  function feedback(message) { error.text(message).toggleClass('d-none', !message); }
+  function renderFeedback() {
+    const descriptor = feedbackDescriptor;
+    let message = '';
+    if (descriptor) {
+      const args = descriptor.messageKey === 'auth.loginRateLimited'
+        ? { time: window.I18n.formatRetryDelay(descriptor.retryAfterSeconds) } : descriptor.messageArgs;
+      message = t(descriptor.messageKey, args, descriptor.messageFallback);
+      if (descriptor.code) message = window.I18n.error({ code: descriptor.code, message: message });
+    }
+    error.text(message).toggleClass('d-none', !message);
+  }
+  function feedback(descriptor) {
+    feedbackDescriptor = descriptor ? { messageKey: descriptor.messageKey, messageArgs: descriptor.messageArgs,
+      messageFallback: descriptor.messageFallback, retryAfterSeconds: descriptor.retryAfterSeconds, code: descriptor.code } : null;
+    renderFeedback();
+  }
   function setBusy(value) {
     busy = value;
     submit.prop('disabled', value);
@@ -16,15 +32,18 @@
   form.on('submit', function (event) {
     event.preventDefault();
     if (busy) return;
-    feedback('');
+    feedback(null);
     const username = $('#username').val().trim();
     const password = $('#password').val();
-    if (!username || !password) { feedback(t("auth.enterYourUsernameAndPassword", null, 'Enter your username and password.')); return; }
+    if (!username || !password) {
+      feedback({ messageKey: 'auth.enterYourUsernameAndPassword', messageFallback: 'Enter your username and password.' }); return;
+    }
     setBusy(true);
     api.post('auth/login', { username: username, password: password }, { authRequired: false })
       .done(function () { window.location.replace(new URL('index.html', document.baseURI).href); })
       .fail(function (failure) {
-        feedback(failure.status === 401 ? t("auth.invalidUsernameOrPassword", null, 'Invalid username or password.') : failure.message);
+        feedback(failure.status === 401
+          ? { messageKey: 'auth.invalidUsernameOrPassword', messageFallback: 'Invalid username or password.' } : failure);
       })
       .always(function () { setBusy(false); });
   });
@@ -34,8 +53,8 @@
       window.location.replace(new URL('index.html', document.baseURI).href);
     }).fail(function (failure) {
       // A missing session is the normal login-page state, not a retryable error.
-      if (failure.status !== 401) feedback(failure.message);
+      if (failure.status !== 401) feedback(failure);
     });
   });
-  document.addEventListener('veriqra:localechange', function () { if (!busy) setBusy(false); });
+  document.addEventListener('veriqra:localechange', function () { setBusy(busy); renderFeedback(); });
 })(jQuery, window.VeriqraApi);

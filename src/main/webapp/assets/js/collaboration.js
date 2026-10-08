@@ -23,6 +23,9 @@
   let workflowMembers = new Map();
   let workflowHasTasks = false;
   let projectGeneration = 0;
+  let readState = 'idle';
+  let readFailure = null;
+  let contributionGeneration = 0;
 
   function selectArea(area) {
     if (!['tasks', 'teams', 'people', 'credits'].includes(area)) return;
@@ -41,6 +44,26 @@
 
   function localFailure(selector, error) {
     $(selector).text(error.status === 403 ? t('collab.localDenied') : error.message);
+  }
+  function readRetry(selector, callback) {
+    $(selector).append($('<button type="button" class="btn btn-outline-secondary btn-sm ms-2">')
+      .text(t('common.retry', 'Retry')).on('click', callback));
+  }
+  function renderReadFailure() {
+    const token = requestToken;
+    ['#collab-managers', '#collab-members', '#collab-teams', '#collab-tasks'].forEach(function (selector) {
+      empty(selector, t('common.unavailable', 'Unavailable'));
+      readRetry(selector, function () { if (token === requestToken && readState === 'failed') refresh(); });
+    });
+    ['people', 'teams', 'tasks'].forEach(function (area) {
+      $('#collab-pane-' + area).attr('aria-busy', 'false');
+      if (readFailure[area]) areaFailure(area, readFailure[area]);
+      else areaNotice(area, '');
+    });
+    $('#collab-task-page-info').text(t('common.unavailable', 'Unavailable'));
+    $('#collab-task-prev, #collab-task-next').prop('disabled', true);
+    $('#collab-setup, #collab-team-detail, #collab-task-detail, #collab-invite-form, #collab-appoint-form, #collab-team-form, #collab-task-form, #collab-transfer-form').addClass('d-none');
+    $('#collab-identity').text(t('common.unavailable', 'Unavailable'));
   }
   function renderGuidance() {
     const identity = [t(admin() ? 'collab.platformAdmin' : 'collab.platformUser')];
@@ -169,23 +192,31 @@
     }).fail(function (error) { if (token === requestToken) localFailure('#collab-credit-notice', error); });
   }
   function refreshContribution() {
-    const token = requestToken;
+    const token = requestToken, selection = ++contributionGeneration;
     $('#collab-contribution-list').empty();
+    $('#collab-contribution-list').attr('aria-busy', 'false');
     $('#collab-contribution-notice').text('');
     if (!active(member(me && me.id))) {
       $('#collab-contribution-notice').text(t('collab.memberRequired')); return;
     }
     const month = $('#collab-contribution-month').val() || currentMonth();
     $('#collab-contribution-month').val(month);
+    const current = function () { return token === requestToken && selection === contributionGeneration && $('#collab-contribution-month').val() === month; };
+    $('#collab-contribution-list').attr('aria-busy', 'true');
     api.get(path('contributions?month=' + encodeURIComponent(month))).done(function (rows) {
-      if (token !== requestToken) return;
+      if (!current()) return;
       const box = $('#collab-contribution-list').empty();
       if (!rows.length) empty(box, t('collab.noContribution', 'No accepted tasks this month.'));
       rows.forEach(function (row) {
         box.append($('<div class="py-1 border-bottom">').text(row.displayName + ' (' + row.username + ') · ' +
           t('collab.score', 'Score') + ': ' + row.score + ' · ' + t('collab.acceptedTasks', 'Accepted tasks') + ': ' + row.acceptedTaskCount));
       });
-    }).fail(function (error) { if (token === requestToken) localFailure('#collab-contribution-notice', error); });
+    }).fail(function (error) {
+      if (!current()) return;
+      empty('#collab-contribution-list', t('common.unavailable', 'Unavailable'));
+      localFailure('#collab-contribution-notice', error);
+      readRetry('#collab-contribution-notice', function () { if (current()) refreshContribution(); });
+    }).always(function () { if (current()) $('#collab-contribution-list').attr('aria-busy', 'false'); });
   }
   function refreshOffers() {
     const token = requestToken;
@@ -229,12 +260,15 @@
   function refresh() {
     if (!projectId) return;
     const token = ++requestToken;
+    if (readState === 'failed') ['people', 'teams', 'tasks'].forEach(function (area) { areaNotice(area, ''); });
+    readState = 'loading'; readFailure = null;
     taskListLoading = true;
     $('#collab-tasks button, #collab-task-prev, #collab-task-next').prop('disabled', true);
     const pending = { people: 2, teams: 1, tasks: 1 };
+    const failedReads = {};
     function read(url, area) {
       $('#collab-pane-' + area).attr('aria-busy', 'true');
-      return api.get(url).fail(function (error) { if (token === requestToken) areaFailure(area, error); })
+      return api.get(url).fail(function (error) { if (token === requestToken) { failedReads[area] = error; areaFailure(area, error); } })
         .always(function () {
           if (token === requestToken && --pending[area] === 0) $('#collab-pane-' + area).attr('aria-busy', 'false');
         });
@@ -243,6 +277,7 @@
       read(path('teams'), 'teams'), read(taskQuery(), 'tasks'))
       .done(function (newManagers, newMembers, newTeams, newTasks) {
         if (token !== requestToken) return;
+        readState = 'ready';
         taskListLoading = false;
         managers = newManagers; members = newMembers; teams = newTeams;
         tasks = newTasks.items; taskTotal = newTasks.total;
@@ -259,7 +294,14 @@
         refreshCredit(); refreshContribution(); refreshOffers();
         if (selectedTeam) selectTeam(selectedTeam.id);
         if (selectedTask) selectTask(selectedTask.task.id);
-      }).fail(function (error) { if (token === requestToken) { taskListLoading = false; } });
+      }).fail(function (error) { if (token === requestToken) {
+        taskListLoading = false; readState = 'failed'; readFailure = failedReads;
+        managers = []; members = []; teams = []; tasks = []; taskTotal = 0;
+        workflowMembers = new Map(); workflowHasTasks = false;
+        clearTaskSelection(); selectedTeam = null; teamMembers = []; ++teamSelectionToken;
+        $('#collab-credit-balance, #collab-credit-history, #collab-contribution-list, #collab-handoffs').empty();
+        renderReadFailure();
+      } });
   }
   function renderManagers() {
     const box = $('#collab-managers').empty();
@@ -489,11 +531,11 @@
 
   $('#collab-refresh').on('click', refresh);
   $('#collab-task-prev').on('click', function () {
-    if (taskPage <= 1) return;
+    if (taskListLoading || readState !== 'ready' || taskPage <= 1) return;
     --taskPage; clearTaskSelection(); refresh();
   });
   $('#collab-task-next').on('click', function () {
-    if (taskPage >= Math.max(1, Math.ceil(taskTotal / taskPageSize))) return;
+    if (taskListLoading || readState !== 'ready' || taskPage >= Math.max(1, Math.ceil(taskTotal / taskPageSize))) return;
     ++taskPage; clearTaskSelection(); refresh();
   });
   $('#collab-filter-status, #collab-filter-team, #collab-filter-assignee').on('change', function () {
@@ -502,24 +544,28 @@
   $('#collab-task-team').on('change', updateAssigneePicker);
   $('#collab-appoint-form').on('submit', function (event) {
     event.preventDefault();
+    if (!this.reportValidity()) return;
     if (!$('#collab-appoint-user').val()) { notice(t('collab.chooseMember'), true); return; }
     busy(this, function () { return api.post(path('managers'), { userId: Number($('#collab-appoint-user').val()) }); });
   });
   $('#collab-invite-form').on('submit', function (event) {
     event.preventDefault(); const form = this;
+    if (!form.reportValidity()) return;
     busy(form, function () { return api.post(path('members'), {
       username: $('#collab-invite-username').val().trim(), projectRole: $('#collab-invite-role').val()
     }); }, function () { form.reset(); });
   });
   $('#collab-team-form').on('submit', function (event) {
     event.preventDefault(); const form = this;
-    if (!$('#collab-team-name').val().trim() || !$('#collab-team-lead').val()) { notice(t('collab.enterTeam'), true); return; }
+    if (!form.reportValidity()) return;
+    if (!$('#collab-team-name').val().trim() || !$('#collab-team-lead').val()) { notice(t('collab.enterTeam'), true); $('#collab-team-name').trigger('focus'); return; }
     busy(form, function () { return api.post(path('teams'), {
       name: $('#collab-team-name').val().trim(), leadUserId: Number($('#collab-team-lead').val())
     }); }, function (team) { form.reset(); selectedTeam = team; });
   });
   $('#collab-team-member-form').on('submit', function (event) {
     event.preventDefault(); if (!selectedTeam) return;
+    if (!this.reportValidity()) return;
     if (!$('#collab-team-member').val()) { notice(t('collab.chooseMember'), true); return; }
     busy(this, function () { return api.post(path('teams/' + selectedTeam.id + '/members'), {
       userId: Number($('#collab-team-member').val()), status: 'ACTIVE'
@@ -527,14 +573,16 @@
   });
   $('#collab-change-lead-form').on('submit', function (event) {
     event.preventDefault(); if (!selectedTeam) return;
+    if (!this.reportValidity()) return;
     busy(this, function () { return api.post(path('teams/' + selectedTeam.id + '/lead'), {
       leadUserId: Number($('#collab-new-lead').val()), expectedVersion: selectedTeam.lockVersion
     }); });
   });
   $('#collab-task-form').on('submit', function (event) {
     event.preventDefault(); const form = this;
+    if (!form.reportValidity()) return;
     if (!$('#collab-task-team').val() || !$('#collab-task-assignee').val() || !$('#collab-task-title').val().trim()) {
-      notice(t('collab.chooseAssignee'), true); return;
+      notice(t('collab.chooseAssignee'), true); $('#collab-task-title').trigger('focus'); return;
     }
     const rewardCredit = positiveCredit($('#collab-task-reward').val(), true);
     if (rewardCredit === null) return;
@@ -546,6 +594,7 @@
   });
   $('#collab-reassign-form').on('submit', function (event) {
     event.preventDefault(); if (!selectedTask) return;
+    if (!this.reportValidity()) return;
     const task = selectedTask.task;
     busy(this, function () { return api.post(path('tasks/' + task.id + '/assignee'), {
       assigneeUserId: Number($('#collab-reassign-user').val()), expectedVersion: task.lockVersion
@@ -554,6 +603,7 @@
   $('#collab-transfer-form').on('input change', function () { delete this.dataset.operationId; });
   $('#collab-transfer-form').on('submit', function (event) {
     event.preventDefault(); const form = this;
+    if (!form.reportValidity()) return;
     const amount = positiveCredit($('#collab-transfer-amount').val(), false);
     if (!amount || !$('#collab-transfer-user').val()) return;
     const operationId = form.dataset.operationId || (form.dataset.operationId = crypto.randomUUID());
@@ -565,6 +615,7 @@
   $('#collab-contribution-month').on('change', refreshContribution);
   $('#collab-reward-form').on('submit', function (event) {
     event.preventDefault(); if (!selectedTask) return;
+    if (!this.reportValidity()) return;
     const amount = positiveCredit($('#collab-reward-value').val(), true);
     if (amount === null) return;
     const task = selectedTask.task;
@@ -575,6 +626,7 @@
   $('#collab-handoff-form').on('input change', function () { delete this.dataset.operationId; });
   $('#collab-handoff-form').on('submit', function (event) {
     event.preventDefault(); if (!selectedTask) return;
+    if (!this.reportValidity()) return;
     const form = this, amount = positiveCredit($('#collab-handoff-amount').val(), false);
     if (!amount || !$('#collab-handoff-user').val()) return;
     const operationId = form.dataset.operationId || (form.dataset.operationId = crypto.randomUUID());
@@ -588,6 +640,8 @@
     ++requestToken;
     ++taskSelectionToken;
     ++teamSelectionToken;
+    ++contributionGeneration;
+    readState = 'idle'; readFailure = null;
     workflowMembers = new Map(); workflowHasTasks = false;
     projectId = event.detail && event.detail.project ? event.detail.project.id : null;
     projectStatus = event.detail && event.detail.project ? event.detail.project.status : null;
@@ -619,6 +673,8 @@
   });
   document.addEventListener('veriqra:localechange', function () {
     if (!projectId || !me) return;
+    if (readState === 'failed') { renderReadFailure(); return; }
+    if (readState !== 'ready') return;
     notice('');
     render();
     if (selectedTeam) renderTeamDetail();

@@ -132,6 +132,7 @@ test('Existing toggle handler owns open state and its child click opens narrow n
   assert.equal(ui.sidebar.classList.contains('open'), false);
   assert.equal(ui.toggle.getAttribute('aria-expanded'), 'false');
   assert.equal(ui.document.body.classList.contains('vq-drawer-open'), false);
+  assert.equal(ui.document.activeElement, ui.toggle, 'Closing cannot leave focus in the hidden navigation');
 });
 
 test('Escape closes a narrow open drawer, clears aria state, and returns focus to its toggle', () => {
@@ -153,6 +154,17 @@ test('Backdrop dismissal returns focus without invoking the existing toggle hand
   assert.equal(ui.sidebar.classList.contains('open'), false);
   assert.equal(ui.toggle.getAttribute('aria-expanded'), 'false');
   assert.equal(ui.document.body.classList.contains('vq-drawer-open'), false);
+  assert.equal(ui.document.activeElement, ui.toggle);
+  assert.equal(ui.toggleCalls(), 1);
+});
+
+test('A backdrop receiving browser focus cannot retain focus after it hides', () => {
+  const ui = browser(); ui.click(ui.toggle);
+  ui.backdrop().focus();
+  assert.equal(ui.sidebar.classList.contains('open'), false);
+  assert.equal(ui.document.activeElement, ui.toggle);
+  assert.equal(ui.toggle.getAttribute('aria-expanded'), 'false');
+  ui.click(ui.backdrop());
   assert.equal(ui.document.activeElement, ui.toggle);
   assert.equal(ui.toggleCalls(), 1);
 });
@@ -191,25 +203,44 @@ test('Navigation keeps its URL, data attributes, existing handler, and default l
   assert.equal(ui.nav.getAttribute('href'), 'admin/users.html');
   assert.equal(ui.nav.getAttribute('data-admin-nav'), 'users');
   assert.equal(ui.document.body.classList.contains('vq-drawer-open'), false);
+  assert.equal(ui.sidebar.classList.contains('open'), false);
+  assert.equal(ui.toggle.getAttribute('aria-expanded'), 'false');
+  assert.equal(ui.document.activeElement, ui.toggle);
   assert.equal(ui.toggleCalls(), 1);
 });
 
-test('Independent navigation and locale events dismiss drawers and clear stale scroll lock without moving focus', () => {
-  for (const [eventName, eventTarget] of [['hashchange', 'window'], ['pagehide', 'window'], ['veriqra:localechange', 'document']]) {
+test('Navigation and locale dismissal return hidden drawer focus even when application navigation closed it first', () => {
+  for (const [eventName, eventTarget] of [['hashchange', 'window'], ['pagehide', 'window'], ['veriqra:localechange', 'document'], ['veriqra:view', 'document']]) {
     for (const alreadyClosedByNavigation of [false, true]) {
       const ui = browser(); ui.click(ui.toggle);
       // Existing application navigation can remove the visual drawer before the event reaches the shell.
       if (alreadyClosedByNavigation) ui.sidebar.classList.remove('open');
       assert.equal(ui.document.body.classList.contains('vq-drawer-open'), true);
       assert.equal(ui.toggle.getAttribute('aria-expanded'), 'true');
-      const focusedBeforeNavigation = ui.document.activeElement;
       ui[eventTarget].dispatch(eventName, {});
       assert.equal(ui.sidebar.classList.contains('open'), false, eventName);
       assert.equal(ui.toggle.getAttribute('aria-expanded'), 'false', eventName);
       assert.equal(ui.document.body.classList.contains('vq-drawer-open'), false, eventName);
-      assert.equal(ui.document.activeElement, focusedBeforeNavigation, eventName + ' must not steal focus');
-      assert.equal(ui.toggle.focusCount, 0);
+      assert.equal(ui.document.activeElement, ui.toggle, eventName + ' cannot leave focus in hidden navigation');
+      assert.equal(ui.toggle.focusCount, 1);
       assert.equal(ui.nav.focusCount, 1);
+      assert.deepEqual(ui.businessCalls, []);
+    }
+  }
+});
+
+test('Dismissal preserves an outside focused control and desktop navigation focus', () => {
+  for (const width of [375, 1280]) {
+    for (const focus of ['outside', 'nav']) {
+      if (width < 992 && focus === 'nav') continue;
+      const ui = browser({ width }); ui.click(ui.toggle);
+      // Application navigation can choose a control before dispatching its view event.
+      ui.document.activeElement = ui[focus];
+      ui.document.dispatch('veriqra:view', {});
+      assert.equal(ui.sidebar.classList.contains('open'), false);
+      assert.equal(ui.toggle.getAttribute('aria-expanded'), 'false');
+      assert.equal(ui.document.activeElement, ui[focus]);
+      assert.equal(ui.toggle.focusCount, 0);
       assert.deepEqual(ui.businessCalls, []);
     }
   }

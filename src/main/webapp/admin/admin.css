@@ -42,10 +42,10 @@ body[data-admin-page="users"] .admin-table { min-width: 76rem; }
 body[data-admin-page="access-logs"] .admin-table { min-width: 78rem; }
 body[data-admin-page="credits"] .admin-table { min-width: 64rem; }
 .admin-table [data-vq-type="timestamp"] { min-width: 10.5rem; white-space: nowrap; }
-.admin-table [data-vq-type="code"] { white-space: nowrap; }
+.admin-table [data-vq-type="code"] { max-width: 22rem; white-space: normal; overflow-wrap: anywhere; }
 .admin-table [data-vq-type="numeric"] { min-width: 4rem; }
 .admin-table .actions { display: inline-flex; align-items: center; gap: var(--vq-space-1); white-space: nowrap; }
-body:is([data-admin-page="login-history"], [data-admin-page="access-logs"], [data-admin-page="audit-log"], [data-admin-page="sessions"]) .admin-table td { white-space: nowrap; }
+.admin-table td { max-width: 24rem; overflow-wrap: anywhere; }
 .admin-pagination {
   display: flex;
   flex-wrap: wrap;

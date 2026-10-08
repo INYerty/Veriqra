@@ -263,6 +263,7 @@ test('failed attempt history shows honest failure and explicit retry, missing re
   const ui = browser(); await ui.open('runs', { runId: '40', runCaseId: '50', attemptId: '999' }); await ui.respond(ui.calls.at(-1), run());
   ui.calls.at(-1).reject({ status: 500, message: 'History unavailable' }); await flush();
   assert.equal(ui.$('#execution-attempt-form').hasClass('d-none'), true); assert.equal(ui.$('#execution-notice').text(), 'History unavailable');
+  assert.equal(ui.$('#execution-case-title').text(), 'Unavailable'); assert.equal(ui.$('#execution-history-status').text(), 'Unavailable');
   await ui.click(ui.find('#execution-case-navigation', 'Retry loading')); await ui.respond(ui.calls.at(-1), run()); await ui.respond(ui.calls.at(-1), [attempt()]);
   assert.match(ui.$('#execution-notice').text(), /referenced attempt is unavailable/);
 });

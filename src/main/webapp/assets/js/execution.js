@@ -210,7 +210,7 @@
           meta, $('<button type="button" class="btn btn-outline-primary btn-sm">').text(t('execution.viewItem', { title: title }, 'View {title}'))
             .on('click', function () { openDetail(row.id); })));
       });
-    } catch (failure) { if (valid(token)) { $('#execution-list-status').text(''); notice(failure.message, true); retry('#execution-list', list); } }
+    } catch (failure) { if (valid(token)) { $('#execution-list-status').text(t('common.unavailable', null, 'Unavailable')); notice(failure.message, true); retry('#execution-list', list); } }
   }
 
   async function openDetail(id, caseId, attemptId) {
@@ -234,7 +234,7 @@
         if (caseId != null) await openCase(caseId, attemptId, current);
       }
       if (valid(token)) focusHeading('#execution-detail-title');
-    } catch (failure) { if (valid(token)) { notice(failure.message, true); retry('#execution-actions', function () { openDetail(id, caseId, attemptId); }); } }
+    } catch (failure) { if (valid(token)) { if (!detail) $('#execution-detail-title').text(t('common.unavailable', null, 'Unavailable')); $('#execution-items-status').text(''); notice(failure.message, true); retry('#execution-actions', function () { openDetail(id, caseId, attemptId); }); } }
   }
   async function renderPlan(current, token) {
     const plan = current.plan;
@@ -452,7 +452,7 @@
       if (recordedMessage && recordedMessage.owner === submissionContext(runId, id)) { notice(recordedMessage.message); recordedMessage = null; }
       focusHeading(selectedAttemptId && history.some(function (attempt) { return sameId(attempt.id, selectedAttemptId); }) ? '#execution-attempt-' + selectedAttemptId : '#execution-case-title');
       return token;
-    } catch (failure) { if (valid(token)) { $('#execution-history-status').text(''); notice(failure.message, true); retry('#execution-case-navigation', function () { openCase(id, attemptId); }); } }
+    } catch (failure) { if (valid(token)) { $('#execution-case-title, #execution-history-status').text(t('common.unavailable', null, 'Unavailable')); notice(failure.message, true); retry('#execution-case-navigation', function () { openCase(id, attemptId); }); } }
   }
 
   async function showForm(update, context, draft) {

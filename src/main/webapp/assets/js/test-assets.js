@@ -15,6 +15,7 @@
   let writing = false;
   let formContext = {};
   let pendingLink = null;
+  let tracePickerGeneration = 0;
   const root = $('#asset-workspace');
   const active = function () { return view === 'requirements' || view === 'test-cases'; };
   const kind = function () { return view === 'requirements' ? 'requirements' : 'test-cases'; };
@@ -76,6 +77,7 @@
       .toggleClass('alert-danger', !!error).toggleClass('alert-success', !!message && !error);
   }
   function formError(message) { $('#asset-form-error').text(message || '').toggleClass('d-none', !message); }
+  function focusHeading(selector) { $(selector).attr('tabindex', '-1').trigger('focus'); }
   function reset() {
     generation++;
     rows = [];
@@ -122,6 +124,7 @@
     $('#asset-new').text(view === 'requirements' ? t("assets.createRequirement", null, 'Create requirement') : t("assets.createTestCase", null, 'Create test case'));
     $('#asset-list').empty();
     $('#asset-list-status').text(t("common.loading", null, 'Loading…'));
+    focusHeading('#asset-list-title');
     try {
       const result = await api.get(base(kind()));
       if (!valid(token)) return;
@@ -141,7 +144,12 @@
         card.append(summary, meta, open);
         $('#asset-list').append(card);
       });
-    } catch (failure) { if (valid(token)) { $('#asset-list-status').text(''); notice(failure.message, true); } }
+    } catch (failure) { if (valid(token)) {
+      rows = [];
+      $('#asset-list-status').text(t('common.unavailable', null, 'Unavailable')); notice(failure.message, true);
+      $('#asset-list').append($('<button type="button" class="btn btn-outline-secondary btn-sm">')
+        .text(t('common.retry', null, 'Retry')).on('click', function () { if (valid(token)) return list(); }));
+    } }
   }
 
   async function linksForCase(caseId, token) {
@@ -166,6 +174,7 @@
     editing = false;
     panels('detail'); notice('');
     $('#asset-detail-title').text(t("common.loading", null, 'Loading…'));
+    focusHeading('#asset-detail-title');
     $('#asset-detail, #asset-steps, #asset-traces').empty();
     $('#asset-primary-actions').empty();
     $('#asset-readonly-note, #asset-trace-load, #asset-trace-retry, #asset-partial-link-panel').addClass('d-none');
@@ -493,19 +502,25 @@
       if (valid(token)) formError(conflict(failure));
     } finally { if (token === generation) { writing = false; button.prop('disabled', false); updateControls(); } }
   });
-  $('#trace-add-button').on('click', async function () {
+  async function loadTraceTargets() {
     if (!writable() || writing || traceState !== 'loaded') return;
     const token = generation;
-    const button = $(this).prop('disabled', true);
-    const target = $('#trace-target').empty();
+    const selection = ++tracePickerGeneration;
+    const current = function () { return valid(token) && selection === tracePickerGeneration; };
+    $('#trace-add-button, #trace-submit').prop('disabled', true); notice('');
+    const target = $('#trace-target').empty().prop('disabled', true)
+      .append($('<option>').val('').text(t('common.loading', null, 'Loading…')));
+    $('#trace-form').removeClass('d-none');
+    focusHeading('#trace-target-label');
     try {
       const type = view === 'requirements' ? 'test-cases' : 'requirements';
       const options = await api.get(base(type));
-      if (!valid(token)) return;
+      if (!current()) return;
       const linkedIds = currentLinks.map(function (link) {
         return String(view === 'requirements' ? link.testCase.id : link.requirement.id);
       });
       const eligible = options.filter(function (row) { return row.status !== 'ARCHIVED' && !linkedIds.includes(String(row.id)); });
+      target.empty().prop('disabled', !eligible.length);
       eligible.forEach(function (row) {
         target.append($('<option>').val(row.id).text((type === 'test-cases' ? 'TC-' : 'REQ-') +
           String(row.keyNo).padStart(3, '0') + ' · ' + row.title));
@@ -516,10 +531,16 @@
       $('#trace-submit').prop('disabled', !eligible.length);
       $('#trace-form').removeClass('d-none');
       target.trigger('focus');
-    } catch (failure) { if (valid(token)) notice(failure.message, true); }
-    finally { if (token === generation) updateControls(); }
-  });
-  $('#trace-cancel').on('click', function () { $('#trace-form').addClass('d-none'); });
+    } catch (failure) { if (current()) {
+      target.empty().append($('<option>').val('').text(t('common.unavailable', null, 'Unavailable'))).prop('disabled', true);
+      notice(failure.message, true);
+      $('#asset-notice').append($('<button type="button" class="btn btn-outline-secondary btn-sm ms-2">')
+        .text(t('common.retry', null, 'Retry')).on('click', function () { if (current()) return loadTraceTargets(); }));
+    } }
+    finally { if (current()) updateControls(); }
+  }
+  $('#trace-add-button').on('click', loadTraceTargets);
+  $('#trace-cancel').on('click', function () { ++tracePickerGeneration; $('#trace-form').addClass('d-none'); notice(''); updateControls(); $('#trace-add-button').trigger('focus'); });
   $('#trace-form').on('submit', async function (event) {
     event.preventDefault();
     if (!writable() || writing || traceState !== 'loaded' || !$('#trace-target').val()) return;
